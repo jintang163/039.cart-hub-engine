@@ -1,0 +1,112 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /cart-hub
+  tomcat:
+    max-threads: 200
+    accept-count: 100
+
+spring:
+  application:
+    name: cart-hub-engine
+  profiles:
+    active: dev
+
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 64
+          max-idle: 16
+          min-idle: 8
+          max-wait: 3000ms
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/cart_hub?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    hikari:
+      maximum-pool-size: 32
+      minimum-idle: 8
+      idle-timeout: 60000
+      connection-timeout: 30000
+
+  kafka:
+    bootstrap-servers: 127.0.0.1:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: 1
+      retries: 3
+    consumer:
+      group-id: cart-hub-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      max-poll-records: 500
+    listener:
+      type: batch
+      concurrency: 4
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.carhub.domain.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+cart-hub:
+  redis:
+    cart-expire-seconds: 864000
+    share-expire-seconds: 86400
+    snapshot-expire-seconds: 2592000
+  validate:
+    enable: true
+    validate-url: http://localhost:8081/product/batchValidate
+    timeout-ms: 3000
+    cache-seconds: 300
+  minio:
+    endpoint: http://127.0.0.1:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket-snapshot: cart-snapshot
+    bucket-log: cart-log
+  sync:
+    enable-db-sync: true
+    sync-interval-seconds: 300
+  limit:
+    max-cart-size: 200
+    max-item-quantity: 999
+
+knife4j:
+  enable: true
+  openapi:
+    title: 购物车引擎API
+    description: 购物车引擎标准接口文档 - 支持多业务隔离、Redis高速存储、优惠/校验/分享/快照
+    version: 1.0.0
+    concat: cart-hub-team
+
+logging:
+  level:
+    com.carhub: debug
+    org.springframework.kafka: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

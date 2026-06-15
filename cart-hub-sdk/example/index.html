@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cart-Hub SDK 使用示例</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background: #f5f7fa; padding: 20px; color: #303133; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: #409EFF; }
+        h2 { font-size: 18px; margin: 20px 0 10px; color: #303133; border-left: 4px solid #409EFF; padding-left: 10px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .btn { display: inline-block; padding: 8px 16px; border: 1px solid #409EFF; background: #409EFF;
+               color: #fff; border-radius: 4px; cursor: pointer; margin: 4px; font-size: 14px; }
+        .btn:hover { background: #66b1ff; }
+        .btn-plain { background: #fff; color: #409EFF; }
+        .btn-danger { border-color: #F56C6C; background: #F56C6C; }
+        .btn-success { border-color: #67C23A; background: #67C23A; }
+        .btn-warning { border-color: #E6A23C; background: #E6A23C; }
+        .input-group { margin: 8px 0; }
+        label { display: inline-block; width: 120px; font-size: 14px; color: #606266; }
+        input { padding: 6px 10px; border: 1px solid #dcdfe6; border-radius: 4px; width: 200px; }
+        pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 6px;
+              overflow-x: auto; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+        .product { border: 1px solid #ebeef5; border-radius: 8px; padding: 16px; text-align: center; }
+        .product-img { width: 100%; height: 120px; background: linear-gradient(135deg, #667eea, #764ba2);
+                       border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;
+                       color: #fff; font-size: 14px; font-weight: 600; }
+        .product-name { font-weight: 600; margin-bottom: 6px; }
+        .product-price { color: #F56C6C; font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        .tag { display: inline-block; padding: 2px 8px; background: #ecf5ff; color: #409EFF;
+               border-radius: 4px; font-size: 12px; margin: 2px; }
+        .tag-warn { background: #fdf6ec; color: #E6A23C; }
+        .tag-danger { background: #fef0f0; color: #F56C6C; }
+        .tag-success { background: #f0f9eb; color: #67C23A; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 Cart-Hub SDK 购物车示例</h1>
+
+        <div class="card">
+            <h2>1. SDK 初始化</h2>
+            <div class="input-group">
+                <label>Base URL:</label>
+                <input type="text" id="baseUrl" value="http://localhost:8080/cart-hub">
+            </div>
+            <div class="input-group">
+                <label>Tenant ID:</label>
+                <input type="text" id="tenantId" value="default">
+            </div>
+            <div class="input-group">
+                <label>Biz Type:</label>
+                <input type="text" id="bizType" value="ecommerce">
+            </div>
+            <div class="input-group">
+                <label>User ID:</label>
+                <input type="text" id="userId" placeholder="登录后设置">
+            </div>
+            <button class="btn" onclick="initSDK()">初始化 SDK</button>
+            <pre id="log"></pre>
+        </div>
+
+        <div class="card">
+            <h2>2. 商品列表（模拟电商）</h2>
+            <div class="grid" id="productList"></div>
+        </div>
+
+        <div class="card">
+            <h2>3. 本地购物车（未登录时使用）</h2>
+            <button class="btn btn-plain" onclick="showLocalCart()">查看本地购物车</button>
+            <button class="btn btn-danger" onclick="clearLocalCart()">清空本地购物车</button>
+            <pre id="localCartResult"></pre>
+        </div>
+
+        <div class="card">
+            <h2>4. 服务端购物车操作</h2>
+            <button class="btn" onclick="getCart()">获取购物车(校验)</button>
+            <button class="btn btn-plain" onclick="getCartSimple()">获取购物车(快速)</button>
+            <button class="btn btn-success" onclick="getSummary()">获取汇总</button>
+            <button class="btn btn-warning" onclick="mergeCart()">登录后合并购物车</button>
+            <button class="btn btn-danger" onclick="clearCart()">清空服务端购物车</button>
+            <pre id="cartResult"></pre>
+        </div>
+
+        <div class="card">
+            <h2>5. 分享 & 快照</h2>
+            <button class="btn" onclick="createShare()">创建分享</button>
+            <button class="btn btn-success" onclick="createSnapshot()">创建快照</button>
+            <button class="btn btn-plain" onclick="listShares()">我的分享列表</button>
+            <button class="btn btn-plain" onclick="listSnapshots()">我的快照列表</button>
+            <pre id="shareResult"></pre>
+        </div>
+    </div>
+
+    <script src="./cart-hub-sdk.js"></script>
+    <script>
+        let sdk = null;
+        const products = [
+            { skuId: 'SKU001', name: '无线蓝牙耳机 Pro', price: 299.00, img: '🎧 耳机' },
+            { skuId: 'SKU002', name: '机械键盘 RGB版', price: 459.00, img: '⌨️ 键盘' },
+            { skuId: 'SKU003', name: '人体工学鼠标', price: 189.00, img: '🖱️ 鼠标' },
+            { skuId: 'SKU004', name: '27寸 2K显示器', price: 1599.00, img: '🖥️ 显示器' },
+            { skuId: 'SKU005', name: '智能手表 Ultra', price: 2499.00, img: '⌚ 手表' },
+            { skuId: 'SKU006', name: '便携音箱 Mini', price: 129.00, img: '🔊 音箱' },
+        ];
+
+        function log(msg, target = 'log') {
+            const el = document.getElementById(target);
+            const time = new Date().toLocaleTimeString();
+            const text = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
+            el.textContent = `[${time}] ${text}\n` + el.textContent;
+        }
+
+        function initSDK() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const tenantId = document.getElementById('tenantId').value;
+            const bizType = document.getElementById('bizType').value;
+            const userId = document.getElementById('userId').value;
+
+            sdk = CartHubSDK.create({
+                baseUrl, tenantId, bizType, userId: userId || null,
+                source: 'web', debug: true
+            });
+
+            sdk.on('userChanged', e => log('用户变更: ' + JSON.stringify(e)));
+            sdk.on('localChanged', () => log('本地购物车已更新', 'localCartResult'));
+
+            log('SDK 初始化成功! 版本: ' + CartHubSDK.VERSION);
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('productList');
+            container.innerHTML = products.map(p => `
+                <div class="product">
+                    <div class="product-img">${p.img}</div>
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">¥${p.price.toFixed(2)}</div>
+                    <div>
+                        <span class="tag">本地</span>
+                        <button class="btn btn-plain" style="padding:4px 12px;margin:2px;"
+                            onclick="addToLocal('${p.skuId}', ${p.price}, '${p.name}')">+ 本地</button>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <span class="tag tag-success">服务端</span>
+                        <button class="btn" style="padding:4px 12px;margin:2px;"
+                            onclick="addToServer('${p.skuId}', ${p.price}, '${p.name}')">+ 加入</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addToLocal(skuId, price, name) {
+            sdk.addLocalItem({ skuId, unitPrice: price, quantity: 1, itemName: name });
+            showLocalCart();
+        }
+
+        function showLocalCart() {
+            const cart = sdk.getLocalCart();
+            document.getElementById('localCartResult').textContent = JSON.stringify(cart, null, 2);
+        }
+
+        function clearLocalCart() {
+            sdk.clearLocalCart();
+            showLocalCart();
+        }
+
+        async function addToServer(skuId, price, name) {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const result = await sdk.addItem({ skuId, unitPrice: price, quantity: 1, itemName: name });
+                log('加入购物车成功: ' + result, 'cartResult');
+            } catch (e) { log('加入失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function getCart() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCart(true);
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+            } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function getCartSimple() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+            } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function getSummary() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const s = await sdk.getCartSummary();
+                document.getElementById('cartResult').textContent = JSON.stringify(s, null, 2);
+            } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function mergeCart() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.mergeCart();
+                log('合并成功!', 'cartResult');
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+            } catch (e) { log('合并失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function clearCart() {
+            if (!sdk) return alert('请先初始化SDK');
+            if (!confirm('确定清空购物车？')) return;
+            try {
+                const r = await sdk.clearCart();
+                log('已清空: ' + r, 'cartResult');
+            } catch (e) { log('失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function createShare() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const r = await sdk.createShare({ title: '我的购物车分享', expireHours: 24 });
+                log('分享创建成功! Share ID: ' + r.shareId, 'shareResult');
+                document.getElementById('shareResult').textContent = JSON.stringify(r, null, 2);
+            } catch (e) { log('失败: ' + e.message, 'shareResult'); }
+        }
+
+        async function createSnapshot() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const r = await sdk.createSnapshot({ snapshotName: '手动快照-' + Date.now() });
+                log('快照创建成功!', 'shareResult');
+                document.getElementById('shareResult').textContent = JSON.stringify(r, null, 2);
+            } catch (e) { log('失败: ' + e.message, 'shareResult'); }
+        }
+
+        async function listShares() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const r = await sdk.listMyShares();
+                document.getElementById('shareResult').textContent = JSON.stringify(r, null, 2);
+            } catch (e) { log('失败: ' + e.message, 'shareResult'); }
+        }
+
+        async function listSnapshots() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const r = await sdk.listMySnapshots();
+                document.getElementById('shareResult').textContent = JSON.stringify(r, null, 2);
+            } catch (e) { log('失败: ' + e.message, 'shareResult'); }
+        }
+
+        renderProducts();
+        initSDK();
+    </script>
+</body>
+</html>

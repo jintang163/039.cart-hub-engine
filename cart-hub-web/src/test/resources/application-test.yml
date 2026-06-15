@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: cart-hub-engine-test
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 1
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/cart_hub_test?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  kafka:
+    bootstrap-servers: 127.0.0.1:9092
+
+cart-hub:
+  validate:
+    enable: false
+  sync:
+    enable-db-sync: false
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.carhub.domain.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.carhub: info
