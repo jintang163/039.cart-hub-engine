@@ -42,6 +42,8 @@ public class AddCartItemDTO implements Serializable {
 
     private String addSource;
 
+    private String remark;
+
     private Map<String, Object> extInfo;
 
 }

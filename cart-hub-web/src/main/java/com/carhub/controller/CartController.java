@@ -315,6 +315,38 @@ public class CartController {
         return R.ok("关联分析已触发");
     }
 
+    @ApiOperation("设置购物车商品备注")
+    @PutMapping("/item/remark")
+    public R<Boolean> setItemRemark(@RequestBody @Valid UpdateItemRemarkDTO dto) {
+        return R.ok(cartService.setItemRemark(dto.getSkuId(), dto.getRemark()));
+    }
+
+    @ApiOperation("获取购物车单个商品备注")
+    @GetMapping("/item/remark")
+    public R<String> getItemRemark(
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId) {
+        return R.ok(cartService.getItemRemark(skuId));
+    }
+
+    @ApiOperation("获取购物车所有商品备注")
+    @GetMapping("/items/remarks")
+    public R<Map<String, String>> getAllItemRemarks() {
+        return R.ok(cartService.getAllItemRemarks());
+    }
+
+    @ApiOperation("删除购物车单个商品备注")
+    @DeleteMapping("/item/remark")
+    public R<Boolean> removeItemRemark(
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId) {
+        return R.ok(cartService.removeItemRemark(skuId));
+    }
+
+    @ApiOperation("清空购物车所有商品备注")
+    @DeleteMapping("/items/remarks")
+    public R<Boolean> clearAllItemRemarks() {
+        return R.ok(cartService.clearAllItemRemarks());
+    }
+
     @Resource
     private com.carhub.storage.CartRedisStorage cartRedisStorage;
 

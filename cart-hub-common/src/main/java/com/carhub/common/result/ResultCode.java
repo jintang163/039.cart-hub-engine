@@ -29,7 +29,10 @@ public enum ResultCode {
     TENANT_NOT_FOUND(2002, "租户不存在"),
 
     DISCOUNT_NOT_FOUND(3001, "优惠信息不存在"),
-    DISCOUNT_NOT_APPLICABLE(3002, "优惠不适用");
+    DISCOUNT_NOT_APPLICABLE(3002, "优惠不适用"),
+
+    REMARK_TOO_LONG(4001, "商品备注过长"),
+    REMARK_CONTAIN_SENSITIVE_WORD(4002, "商品备注包含敏感词");
 
     private final Integer code;
     private final String message;

@@ -59,6 +59,8 @@ public class CartItem implements Serializable {
 
     private String invalidMessage;
 
+    private String remark;
+
     private Map<String, Object> extInfo;
 
     public void recalculate() {

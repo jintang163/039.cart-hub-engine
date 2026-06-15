@@ -46,4 +46,9 @@ public class JsonUtil {
         return parseObject(toJson(map)).toJavaObject(clazz);
     }
 
+    public static Map<String, Object> fromJsonMap(String json) {
+        return JSON.parseObject(json, new TypeReference<Map<String, Object>>() {
+        });
+    }
+
 }

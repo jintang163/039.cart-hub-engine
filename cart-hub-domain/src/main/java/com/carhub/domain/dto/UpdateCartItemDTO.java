@@ -28,6 +28,8 @@ public class UpdateCartItemDTO implements Serializable {
 
     private Map<String, String> itemSpec;
 
+    private String remark;
+
     private Map<String, Object> extInfo;
 
 }

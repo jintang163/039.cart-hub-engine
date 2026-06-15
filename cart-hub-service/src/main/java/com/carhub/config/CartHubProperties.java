@@ -20,6 +20,7 @@ public class CartHubProperties {
     private Limit limit = new Limit();
     private Promotion promotion = new Promotion();
     private Recommend recommend = new Recommend();
+    private Remark remark = new Remark();
 
     @Data
     public static class Redis {
@@ -79,6 +80,14 @@ public class CartHubProperties {
         private Integer analyzeIntervalHours = 6;
         private Integer analyzeRecentDays = 30;
         private Integer maxHistoryRecords = 50000;
+    }
+
+    @Data
+    public static class Remark {
+        private Boolean enable = true;
+        private Integer maxLength = 200;
+        private Boolean enableSensitiveWordFilter = true;
+        private java.util.List<String> sensitiveWords = new java.util.ArrayList<>();
     }
 
     @Bean

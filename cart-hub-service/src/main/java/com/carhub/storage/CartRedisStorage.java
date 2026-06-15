@@ -108,6 +108,11 @@ public class CartRedisStorage {
             }
             oldItem.getExtInfo().putAll(item.getExtInfo());
         }
+        if (StringUtils.isNotBlank(item.getRemark())) {
+            oldItem.setRemark(item.getRemark());
+        } else if (item.getRemark() != null) {
+            oldItem.setRemark(null);
+        }
         oldItem.recalculate();
         cartMap.fastPut(item.getSkuId(), JsonUtil.toJson(oldItem));
         setCartExpire(cartKey);
@@ -392,6 +397,115 @@ public class CartRedisStorage {
     public void clearCartMeta(String tenantId, String bizType, String userId) {
         String metaKey = RedisKeyConstant.buildCartMetaKey(tenantId, bizType, userId);
         stringRedisTemplate.delete(metaKey);
+    }
+
+    public boolean setItemRemark(String tenantId, String bizType, String userId, String skuId, String remark) {
+        if (StringUtils.isAnyBlank(tenantId, bizType, userId, skuId)) {
+            return false;
+        }
+        String remarkKey = RedisKeyConstant.buildCartRemarkKey(tenantId, bizType, userId);
+        try {
+            if (StringUtils.isBlank(remark)) {
+                stringRedisTemplate.opsForHash().delete(remarkKey, skuId);
+            } else {
+                Map<String, Object> remarkData = new HashMap<>();
+                remarkData.put("content", remark);
+                remarkData.put("updateTime", System.currentTimeMillis());
+                stringRedisTemplate.opsForHash().put(remarkKey, skuId, JsonUtil.toJson(remarkData));
+                setRemarkExpire(remarkKey);
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("Set item remark failed: tenantId={}, bizType={}, userId={}, skuId={}, error={}",
+                    tenantId, bizType, userId, skuId, e.getMessage());
+            return false;
+        }
+    }
+
+    public String getItemRemark(String tenantId, String bizType, String userId, String skuId) {
+        if (StringUtils.isAnyBlank(tenantId, bizType, userId, skuId)) {
+            return null;
+        }
+        String remarkKey = RedisKeyConstant.buildCartRemarkKey(tenantId, bizType, userId);
+        try {
+            Object value = stringRedisTemplate.opsForHash().get(remarkKey, skuId);
+            if (value == null) {
+                return null;
+            }
+            Map<String, Object> remarkData = JsonUtil.fromJsonMap((String) value);
+            if (remarkData != null && remarkData.containsKey("content")) {
+                return (String) remarkData.get("content");
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("Get item remark failed: tenantId={}, bizType={}, userId={}, skuId={}, error={}",
+                    tenantId, bizType, userId, skuId, e.getMessage());
+            return null;
+        }
+    }
+
+    public Map<String, String> getAllItemRemarks(String tenantId, String bizType, String userId) {
+        if (StringUtils.isAnyBlank(tenantId, bizType, userId)) {
+            return new HashMap<>();
+        }
+        String remarkKey = RedisKeyConstant.buildCartRemarkKey(tenantId, bizType, userId);
+        Map<String, String> result = new HashMap<>();
+        try {
+            Map<Object, Object> entries = stringRedisTemplate.opsForHash().entries(remarkKey);
+            if (entries != null && !entries.isEmpty()) {
+                for (Map.Entry<Object, Object> entry : entries.entrySet()) {
+                    String skuId = (String) entry.getKey();
+                    try {
+                        Map<String, Object> remarkData = JsonUtil.fromJsonMap((String) entry.getValue());
+                        if (remarkData != null && remarkData.containsKey("content")) {
+                            result.put(skuId, (String) remarkData.get("content"));
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Get all item remarks failed: tenantId={}, bizType={}, userId={}, error={}",
+                    tenantId, bizType, userId, e.getMessage());
+        }
+        return result;
+    }
+
+    public boolean removeItemRemark(String tenantId, String bizType, String userId, String skuId) {
+        if (StringUtils.isAnyBlank(tenantId, bizType, userId, skuId)) {
+            return false;
+        }
+        String remarkKey = RedisKeyConstant.buildCartRemarkKey(tenantId, bizType, userId);
+        try {
+            stringRedisTemplate.opsForHash().delete(remarkKey, skuId);
+            return true;
+        } catch (Exception e) {
+            log.warn("Remove item remark failed: tenantId={}, bizType={}, userId={}, skuId={}, error={}",
+                    tenantId, bizType, userId, skuId, e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean clearAllItemRemarks(String tenantId, String bizType, String userId) {
+        if (StringUtils.isAnyBlank(tenantId, bizType, userId)) {
+            return false;
+        }
+        String remarkKey = RedisKeyConstant.buildCartRemarkKey(tenantId, bizType, userId);
+        try {
+            stringRedisTemplate.delete(remarkKey);
+            return true;
+        } catch (Exception e) {
+            log.warn("Clear all item remarks failed: tenantId={}, bizType={}, userId={}, error={}",
+                    tenantId, bizType, userId, e.getMessage());
+            return false;
+        }
+    }
+
+    private void setRemarkExpire(String remarkKey) {
+        Integer expire = cartHubProperties.getRedis().getCartExpireSeconds();
+        if (expire != null && expire > 0) {
+            stringRedisTemplate.expire(remarkKey, Duration.ofSeconds(expire));
+        }
     }
 
     @Data
