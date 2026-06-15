@@ -61,6 +61,9 @@ export declare class CartHubSDK {
     removeItemRemark(skuId: string): Promise<boolean>;
     clearAllItemRemarks(): Promise<boolean>;
 
+    batchSort(sortItems: SortItem[]): Promise<number>;
+    reorderCartBySkus(orderedSkuIds: string[]): Promise<number>;
+
     on(event: string, callback: (data: any) => void): () => void;
     off(event: string, callback: (data: any) => void): void;
 
@@ -93,6 +96,7 @@ export interface CartItemInput {
     selected?: boolean;
     addSource?: string;
     remark?: string;
+    sortWeight?: number;
     extInfo?: Record<string, any>;
 }
 
@@ -105,6 +109,7 @@ export interface UpdateCartItemInput {
     itemImage?: string;
     itemSpec?: Record<string, string>;
     remark?: string;
+    sortWeight?: number;
     extInfo?: Record<string, any>;
 }
 
@@ -136,6 +141,7 @@ export interface CartItemVO {
     addSource?: string;
     invalidMessage?: string;
     remark?: string;
+    sortWeight?: number;
     extInfo?: Record<string, any>;
 }
 
@@ -372,6 +378,11 @@ export interface CartVO {
 export interface RecommendOptions {
     currentSkus?: string[];
     topN?: number;
+}
+
+export interface SortItem {
+    skuId: string;
+    sortWeight?: number;
 }
 
 export interface RecommendItemVO {

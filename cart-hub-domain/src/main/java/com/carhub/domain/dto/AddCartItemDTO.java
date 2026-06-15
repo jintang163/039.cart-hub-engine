@@ -44,6 +44,8 @@ public class AddCartItemDTO implements Serializable {
 
     private String remark;
 
+    private Integer sortWeight;
+
     private Map<String, Object> extInfo;
 
 }

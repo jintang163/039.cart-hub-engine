@@ -55,6 +55,11 @@ public class CartService {
 
         String processedRemark = processRemark(dto.getRemark());
 
+        Integer sortWeight = dto.getSortWeight();
+        if (sortWeight == null) {
+            sortWeight = getNextSortWeight(tenantId, bizType, userId);
+        }
+
         CartItem item = CartItem.builder()
                 .skuId(dto.getSkuId())
                 .spuId(dto.getSpuId())
@@ -70,6 +75,7 @@ public class CartService {
                 .selected(dto.getSelected())
                 .addSource(StringUtils.defaultIfBlank(dto.getAddSource(), CartContextHolder.getSource()))
                 .remark(processedRemark)
+                .sortWeight(sortWeight)
                 .extInfo(dto.getExtInfo())
                 .build();
 
@@ -119,6 +125,7 @@ public class CartService {
                 .itemImage(dto.getItemImage())
                 .itemSpec(dto.getItemSpec())
                 .remark(processedRemark)
+                .sortWeight(dto.getSortWeight())
                 .extInfo(dto.getExtInfo())
                 .build();
 
@@ -375,6 +382,57 @@ public class CartService {
                     "商品备注包含敏感词：" + String.join("、", foundWords));
         }
         return remark;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int batchSort(BatchSortDTO dto) {
+        String tenantId = CartContextHolder.getTenantId();
+        String bizType = CartContextHolder.getBizType();
+        String userId = CartContextHolder.getUserId();
+        validateUserId(userId);
+
+        if (dto.getSortItems() == null || dto.getSortItems().isEmpty()) {
+            throw new BusinessException(ResultCode.SORT_SKU_LIST_INVALID);
+        }
+
+        List<CartItem> currentItems = cartRedisStorage.getItems(tenantId, bizType, userId);
+        Set<String> cartSkus = currentItems.stream()
+                .map(CartItem::getSkuId)
+                .collect(Collectors.toSet());
+
+        Map<String, Integer> sortMap = new LinkedHashMap<>();
+        for (BatchSortDTO.SortItem sortItem : dto.getSortItems()) {
+            if (StringUtils.isBlank(sortItem.getSkuId())) {
+                continue;
+            }
+            if (!cartSkus.contains(sortItem.getSkuId())) {
+                throw new BusinessException(ResultCode.SORT_SKU_NOT_IN_CART.getCode(),
+                        "商品[" + sortItem.getSkuId() + "]不在购物车中");
+            }
+            sortMap.put(sortItem.getSkuId(), sortItem.getSortWeight() != null ? sortItem.getSortWeight() : sortMap.size());
+        }
+
+        int updated = cartRedisStorage.batchUpdateSort(tenantId, bizType, userId, sortMap);
+        if (updated > 0) {
+            cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
+                    null, null, null, null, null, "batch sort " + updated + " items");
+            asyncSyncDb(tenantId, bizType, userId);
+        }
+        log.info("batchSort success: tenantId={}, bizType={}, userId={}, updated={}",
+                tenantId, bizType, userId, updated);
+        return updated;
+    }
+
+    private Integer getNextSortWeight(String tenantId, String bizType, String userId) {
+        List<CartItem> items = cartRedisStorage.getItems(tenantId, bizType, userId);
+        if (items == null || items.isEmpty()) {
+            return 0;
+        }
+        int maxWeight = items.stream()
+                .mapToInt(i -> i.getSortWeight() != null ? i.getSortWeight() : 0)
+                .max()
+                .orElse(0);
+        return maxWeight + 10;
     }
 
     @Transactional(rollbackFor = Exception.class)

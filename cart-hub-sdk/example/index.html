@@ -97,6 +97,25 @@
         .remark-btn { padding: 2px 8px; font-size: 11px; border: 1px solid #E6A23C; color: #E6A23C;
                       background: #fff; border-radius: 4px; cursor: pointer; margin-top: 4px; }
         .remark-btn:hover { background: #fdf6ec; }
+
+        .sortable-list { list-style: none; padding: 0; margin: 0; }
+        .sortable-item { display: flex; align-items: center; padding: 8px 12px;
+                       background: #fff; border: 1px solid #ebeef5; border-radius: 6px;
+                       margin-bottom: 6px; cursor: move; transition: all 0.2s; user-select: none; }
+        .sortable-item:hover { border-color: #409EFF; box-shadow: 0 2px 8px rgba(64,158,255,0.1); }
+        .sortable-item.dragging { opacity: 0.5; border-style: dashed; border-color: #409EFF; }
+        .sortable-item.drag-over { border-color: #67C23A; background: #f0f9eb; }
+        .sort-handle { cursor: grab; margin-right: 10px; color: #909399; font-size: 18px;
+                       padding: 0 6px; user-select: none; }
+        .sort-handle:active { cursor: grabbing; }
+        .sort-order-badge { display: inline-block; background: #409EFF; color: #fff;
+                           font-size: 11px; padding: 1px 6px; border-radius: 3px;
+                           margin-right: 10px; min-width: 24px; text-align: center; }
+        .sort-weight-tag { font-size: 11px; color: #909399; margin-left: 8px; }
+        .sort-save-bar { margin-top: 12px; padding: 12px;
+                          background: #ecf5ff; border-radius: 6px;
+                          display: flex; justify-content: space-between; align-items: center; }
+        .sort-save-tip { font-size: 12px; color: #409EFF; }
     </style>
 </head>
 <body>
@@ -148,6 +167,11 @@
                 <span class="tag tag-warn">备注管理</span>
                 <button class="btn btn-plain" style="padding:4px 12px;" onclick="getAllRemarks()">查看所有备注</button>
                 <button class="btn btn-danger" style="padding:4px 12px;" onclick="clearAllRemarks()">清空所有备注</button>
+            </div>
+            <div style="margin-top:10px;">
+                <span class="tag">拖拽排序</span>
+                <button class="btn btn-plain" style="padding:4px 12px;" onclick="toggleSortMode()">切换排序模式</button>
+                <span id="sortModeHint" style="font-size:12px;color:#909399;margin-left:6px;">当前：浏览模式</span>
             </div>
             <div id="cartRemarkList" style="margin-top:8px;"></div>
             <pre id="cartResult"></pre>
@@ -774,6 +798,150 @@
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
                 renderCartRemarks(cart);
             } catch (e) { log('清空备注失败: ' + e.message, 'cartResult'); }
+        }
+
+        let isSortMode = false;
+        let currentCartItems = [];
+        let dragSrcIndex = -1;
+
+        function toggleSortMode() {
+            isSortMode = !isSortMode;
+            document.getElementById('sortModeHint').textContent = '当前：' + (isSortMode ? '拖拽排序模式（拖动手柄调整顺序）' : '浏览模式');
+            renderCartRemarks({ items: currentCartItems });
+        }
+
+        function renderCartRemarks(cart) {
+            const container = document.getElementById('cartRemarkList');
+            if (!cart || !cart.items || cart.items.length === 0) {
+                currentCartItems = [];
+                container.innerHTML = '<span style="color:#909399;font-size:12px;">购物车为空</span>';
+                return;
+            }
+            currentCartItems = [...cart.items];
+
+            if (isSortMode) {
+                renderSortableList(container, currentCartItems);
+            } else {
+                renderRemarkList(container, currentCartItems);
+            }
+        }
+
+        function renderRemarkList(container, items) {
+            let html = '<div style="font-size:13px;">';
+            items.forEach((item, idx) => {
+                const name = item.itemName || item.skuId;
+                html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;">';
+                html += '<span style="min-width:100px;font-weight:500;">' + (idx + 1) + '. ' + name + '</span>';
+                if (item.remark) {
+                    html += '<span class="remark-tag" style="flex:1;">📝 ' + item.remark + '</span>';
+                    html += '<button class="remark-btn" style="margin-left:4px;" onclick="editRemark(\'' + item.skuId + '\', \'' + item.remark.replace(/'/g, "\\'") + '\')">修改</button>';
+                    html += '<button class="remark-btn" style="margin-left:4px;color:#F56C6C;border-color:#F56C6C;" onclick="deleteRemark(\'' + item.skuId + '\')">删除</button>';
+                } else {
+                    html += '<button class="remark-btn" style="flex:0;" onclick="editRemark(\'' + item.skuId + '\', \'\')">添加备注</button>';
+                }
+                html += '<span class="sort-weight-tag">权重:' + (item.sortWeight ?? '-') + '</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderSortableList(container, items) {
+            let html = '<ul class="sortable-list" id="sortableList">';
+            items.forEach((item, idx) => {
+                const name = item.itemName || item.skuId;
+                html += `<li class="sortable-item" data-sku="${item.skuId}" data-index="${idx}" draggable="true">`;
+                html += '<span class="sort-handle" title="拖动排序">⋮⋮</span>';
+                html += '<span class="sort-order-badge">' + (idx + 1) + '</span>';
+                html += '<span style="flex:1;font-weight:500;">' + name + '</span>';
+                if (item.remark) {
+                    html += '<span class="remark-tag" style="margin-right:8px;">📝 ' + item.remark + '</span>';
+                }
+                html += '<span class="sort-weight-tag">权重:' + (item.sortWeight ?? '-') + '</span>';
+                html += '</li>';
+            });
+            html += '</ul>';
+            html += '<div class="sort-save-bar">';
+            html += '<span class="sort-save-tip">💡 拖动 ⋮⋮ 手柄调整商品顺序，完成后点击"保存排序"</span>';
+            html += '<div>';
+            html += '<button class="btn btn-plain" style="padding:4px 12px;margin-right:6px;" onclick="resetSortOrder()">重置顺序</button>';
+            html += '<button class="btn btn-success" style="padding:4px 12px;" onclick="saveSortOrder()">保存排序</button>';
+            html += '</div></div>';
+            container.innerHTML = html;
+            bindSortEvents();
+        }
+
+        function bindSortEvents() {
+            const list = document.getElementById('sortableList');
+            if (!list) return;
+            const items = list.querySelectorAll('.sortable-item');
+            items.forEach(item => {
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragend', handleDragEnd);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+                item.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+
+        function handleDragStart(e) {
+            dragSrcIndex = parseInt(e.currentTarget.dataset.index);
+            e.currentTarget.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', dragSrcIndex);
+        }
+
+        function handleDragEnd(e) {
+            e.currentTarget.classList.remove('dragging');
+            document.querySelectorAll('.sortable-item').forEach(el => el.classList.remove('drag-over'));
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const targetIndex = parseInt(e.currentTarget.dataset.index);
+            if (isNaN(dragSrcIndex) || dragSrcIndex < 0 || dragSrcIndex === targetIndex) return;
+            const moved = currentCartItems.splice(dragSrcIndex, 1)[0];
+            currentCartItems.splice(targetIndex, 0, moved);
+            renderSortableList(document.getElementById('cartRemarkList'), currentCartItems);
+        }
+
+        function resetSortOrder() {
+            currentCartItems.sort((a, b) => {
+                const wa = a.sortWeight ?? 0;
+                const wb = b.sortWeight ?? 0;
+                if (wa !== wb) return wa - wb;
+                const ta = a.addTime ?? 0;
+                const tb = b.addTime ?? 0;
+                return tb - ta;
+            });
+            renderSortableList(document.getElementById('cartRemarkList'), currentCartItems);
+            log('已重置排序', 'cartResult');
+        }
+
+        async function saveSortOrder() {
+            if (!sdk) return alert('请先初始化SDK');
+            const sortItems = currentCartItems.map((item, idx) => ({
+                skuId: item.skuId,
+                sortWeight: (idx + 1) * 10
+            }));
+            try {
+                const result = await sdk.batchSort(sortItems);
+                log('排序保存成功，更新了 ' + result + ' 个商品顺序', 'cartResult');
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+            } catch (e) { log('排序保存失败: ' + e.message, 'cartResult'); }
         }
 
         renderProducts();

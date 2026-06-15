@@ -347,6 +347,12 @@ public class CartController {
         return R.ok(cartService.clearAllItemRemarks());
     }
 
+    @ApiOperation("批量更新购物车商品排序（拖拽排序用）")
+    @PutMapping("/items/sort")
+    public R<Integer> batchSort(@RequestBody @Valid BatchSortDTO dto) {
+        return R.ok(cartService.batchSort(dto));
+    }
+
     @Resource
     private com.carhub.storage.CartRedisStorage cartRedisStorage;
 

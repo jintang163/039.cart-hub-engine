@@ -61,6 +61,8 @@ public class CartItem implements Serializable {
 
     private String remark;
 
+    private Integer sortWeight;
+
     private Map<String, Object> extInfo;
 
     public void recalculate() {

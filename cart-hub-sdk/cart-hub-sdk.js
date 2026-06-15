@@ -496,6 +496,34 @@
             return result;
         }
 
+        async batchSort(sortItems) {
+            if (!Array.isArray(sortItems)) {
+                throw new Error('sortItems must be an array of {skuId, sortWeight}');
+            }
+            const items = sortItems.map((it, idx) => ({
+                skuId: it.skuId,
+                sortWeight: it.sortWeight != null ? it.sortWeight : idx
+            }));
+            const result = await this._request('/api/cart/items/sort', {
+                method: 'PUT',
+                body: { sortItems: items }
+            });
+            this._emit('sortChanged', items);
+            this._emit('cartChanged', result);
+            return result;
+        }
+
+        async reorderCartBySkus(orderedSkuIds) {
+            if (!Array.isArray(orderedSkuIds)) {
+                throw new Error('orderedSkuIds must be an array');
+            }
+            const sortItems = orderedSkuIds.map((skuId, idx) => ({
+                skuId,
+                sortWeight: (idx + 1) * 10
+            }));
+            return this.batchSort(sortItems);
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);

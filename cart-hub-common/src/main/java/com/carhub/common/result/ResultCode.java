@@ -32,7 +32,10 @@ public enum ResultCode {
     DISCOUNT_NOT_APPLICABLE(3002, "优惠不适用"),
 
     REMARK_TOO_LONG(4001, "商品备注过长"),
-    REMARK_CONTAIN_SENSITIVE_WORD(4002, "商品备注包含敏感词");
+    REMARK_CONTAIN_SENSITIVE_WORD(4002, "商品备注包含敏感词"),
+
+    SORT_SKU_LIST_INVALID(5001, "排序商品列表无效"),
+    SORT_SKU_NOT_IN_CART(5002, "排序商品不在购物车中");
 
     private final Integer code;
     private final String message;

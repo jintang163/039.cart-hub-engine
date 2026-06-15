@@ -113,6 +113,9 @@ public class CartRedisStorage {
         } else if (item.getRemark() != null) {
             oldItem.setRemark(null);
         }
+        if (item.getSortWeight() != null) {
+            oldItem.setSortWeight(item.getSortWeight());
+        }
         oldItem.recalculate();
         cartMap.fastPut(item.getSkuId(), JsonUtil.toJson(oldItem));
         setCartExpire(cartKey);
@@ -216,10 +219,26 @@ public class CartRedisStorage {
         if (all == null || all.isEmpty()) {
             return new ArrayList<>();
         }
-        return all.values().stream()
+        List<CartItem> items = all.values().stream()
                 .map(json -> JsonUtil.fromJson(json, CartItem.class))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+        items.sort((a, b) -> {
+            Integer wa = a.getSortWeight();
+            Integer wb = b.getSortWeight();
+            if (wa != null && wb != null) {
+                return Integer.compare(wa, wb);
+            }
+            if (wa != null) return -1;
+            if (wb != null) return 1;
+            Long ta = a.getAddTime();
+            Long tb = b.getAddTime();
+            if (ta != null && tb != null) {
+                return Long.compare(tb, ta);
+            }
+            return 0;
+        });
+        return items;
     }
 
     public List<CartItem> getItemsBySkus(String tenantId, String bizType, String userId, List<String> skuIds) {
@@ -397,6 +416,33 @@ public class CartRedisStorage {
     public void clearCartMeta(String tenantId, String bizType, String userId) {
         String metaKey = RedisKeyConstant.buildCartMetaKey(tenantId, bizType, userId);
         stringRedisTemplate.delete(metaKey);
+    }
+
+    public int batchUpdateSort(String tenantId, String bizType, String userId, Map<String, Integer> sortMap) {
+        if (sortMap == null || sortMap.isEmpty()) {
+            return 0;
+        }
+        String cartKey = RedisKeyConstant.buildCartKey(tenantId, bizType, userId);
+        RMap<String, String> cartMap = redissonClient.getMap(cartKey);
+        int updated = 0;
+        for (Map.Entry<String, Integer> entry : sortMap.entrySet()) {
+            String skuId = entry.getKey();
+            Integer sortWeight = entry.getValue();
+            String oldJson = cartMap.get(skuId);
+            if (StringUtils.isBlank(oldJson)) {
+                continue;
+            }
+            CartItem item = JsonUtil.fromJson(oldJson, CartItem.class);
+            if (item == null) continue;
+            item.setSortWeight(sortWeight);
+            cartMap.fastPut(skuId, JsonUtil.toJson(item));
+            updated++;
+        }
+        if (updated > 0) {
+            setCartExpire(cartKey);
+            incrementVersion(cartKey);
+        }
+        return updated;
     }
 
     @Data
