@@ -89,6 +89,7 @@ class CartShareService {
     private final CartShareMapper cartShareMapper;
     private final CartHubProperties cartHubProperties;
     private final CartService cartService;
+    private final CartStatisticsService cartStatisticsService;
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> createShare(String title, Integer expireHours, String password,
@@ -121,6 +122,8 @@ class CartShareService {
         cartShareMapper.insert(entity);
 
         cartService.saveShareCache(shareId, cart);
+
+        cartStatisticsService.recordShare(tenantId, bizType, userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("shareId", shareId);
@@ -226,6 +229,7 @@ class CartSnapshotService {
     private final CartRedisStorage cartRedisStorage;
     private final CartSnapshotMapper cartSnapshotMapper;
     private final CartHubProperties cartHubProperties;
+    private final CartStatisticsService cartStatisticsService;
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> createSnapshot(String snapshotName, String snapshotType, String orderNo) {
@@ -256,6 +260,8 @@ class CartSnapshotService {
         entity.setStorageType(1);
         entity.setExpireTime(LocalDateTime.now().plusDays(expireDays));
         cartSnapshotMapper.insert(entity);
+
+        cartStatisticsService.recordSnapshot(tenantId, bizType, userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("snapshotId", snapshotId);

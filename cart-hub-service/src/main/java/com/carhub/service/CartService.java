@@ -35,6 +35,7 @@ public class CartService {
     private final CartValidateService cartValidateService;
     private final CartHistoryService cartHistoryService;
     private final CartDbSyncService cartDbSyncService;
+    private final CartStatisticsService cartStatisticsService;
     private final CartHubProperties cartHubProperties;
     private final RedissonClient redissonClient;
 
@@ -74,6 +75,11 @@ public class CartService {
         cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_ADD,
                 dto.getSkuId(), null, dto.getQuantity(), null, dto.getUnitPrice(), null);
 
+        BigDecimal itemAmount = dto.getUnitPrice() != null
+                ? dto.getUnitPrice().multiply(BigDecimal.valueOf(dto.getQuantity()))
+                : BigDecimal.ZERO;
+        cartStatisticsService.recordAdd(tenantId, bizType, userId, dto.getQuantity(), itemAmount);
+
         asyncSyncDb(tenantId, bizType, userId);
         log.info("addItem success: tenantId={}, bizType={}, userId={}, skuId={}, qty={}",
                 tenantId, bizType, userId, dto.getSkuId(), dto.getQuantity());
@@ -110,6 +116,7 @@ public class CartService {
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
                     dto.getSkuId(), oldItem.getQuantity(), dto.getQuantity(),
                     oldItem.getUnitPrice(), dto.getUnitPrice(), null);
+            cartStatisticsService.recordUpdate(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
         }
         return updated;
@@ -131,6 +138,7 @@ public class CartService {
         if (newQty != null) {
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
                     skuId, oldItem.getQuantity(), newQty.intValue(), null, null, null);
+            cartStatisticsService.recordUpdate(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
         }
         return newQty;
@@ -152,6 +160,7 @@ public class CartService {
         if (removed) {
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_DELETE,
                     skuId, oldItem.getQuantity(), 0, null, null, null);
+            cartStatisticsService.recordDelete(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
         }
         return removed;
@@ -170,6 +179,7 @@ public class CartService {
                 cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_DELETE,
                         skuId, null, 0, null, null, "batchRemove");
             }
+            cartStatisticsService.recordDelete(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
         }
         return count;
@@ -186,6 +196,7 @@ public class CartService {
                 null, null, null, null, null, null);
         boolean result = cartRedisStorage.clearCart(tenantId, bizType, userId);
         if (result) {
+            cartStatisticsService.recordClear(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
         }
         return result;
@@ -250,6 +261,8 @@ public class CartService {
         }
 
         int mergedCount = 0;
+        int mergedQty = 0;
+        BigDecimal mergedAmount = BigDecimal.ZERO;
         for (CartItem item : dto.getItems()) {
             if (item == null || StringUtils.isBlank(item.getSkuId())) {
                 continue;
@@ -260,7 +273,16 @@ public class CartService {
                     Boolean.TRUE.equals(dto.getOverwrite()));
             if (merged) {
                 mergedCount++;
+                mergedQty += item.getQuantity() != null ? item.getQuantity() : 0;
+                if (item.getUnitPrice() != null && item.getQuantity() != null) {
+                    mergedAmount = mergedAmount.add(
+                            item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                }
             }
+        }
+
+        if (mergedCount > 0) {
+            cartStatisticsService.recordAdd(tenantId, bizType, userId, mergedQty, mergedAmount);
         }
 
         cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_MERGE,

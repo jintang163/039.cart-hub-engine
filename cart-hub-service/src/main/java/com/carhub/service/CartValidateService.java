@@ -10,8 +10,10 @@ import com.carhub.common.constant.RedisKeyConstant;
 import com.carhub.common.util.JsonUtil;
 import com.carhub.config.CartHubProperties;
 import com.carhub.domain.dto.ProductValidateDTO;
+import com.carhub.domain.entity.BizConfigEntity;
 import com.carhub.domain.model.Cart;
 import com.carhub.domain.model.CartItem;
+import com.carhub.storage.CartRedisStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -32,18 +34,21 @@ import java.util.stream.Collectors;
 public class CartValidateService {
 
     private final CartHubProperties cartHubProperties;
+    private final BizConfigService bizConfigService;
+    private final CartRedisStorage cartRedisStorage;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    @Resource(name = "redisTemplate")
-    private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
-
+    /**
+     * 查询校验并重算价格
+     * 价格变动后会回写Redis，并标记price_changed
+     */
     public void validateAndRecalculate(String tenantId, String bizType, String userId, Cart cart) {
         if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
             return;
         }
-        if (!cartHubProperties.getValidate().getEnable()) {
+        if (!isValidateEnabled(tenantId, bizType)) {
             return;
         }
 
@@ -70,10 +75,17 @@ public class CartValidateService {
             }
         }
 
-        applyValidateResult(items, cacheMap);
+        boolean hasChanged = applyValidateResult(items, cacheMap);
         cart.recalculate();
+
+        if (hasChanged) {
+            persistUpdatedItems(tenantId, bizType, userId, items, cacheMap);
+        }
     }
 
+    /**
+     * 单个SKU重校验（Kafka消息触发用）
+     */
     public void revalidateSingleSku(String tenantId, String bizType, String userId, Cart cart, String skuId) {
         if (cart == null || cart.getItems() == null) {
             return;
@@ -92,10 +104,12 @@ public class CartValidateService {
         List<ProductValidateResult> results = remoteValidate(tenantId, bizType, Collections.singletonList(dto));
         if (!results.isEmpty()) {
             ProductValidateResult r = results.get(0);
-            applySingleResult(targetItem, r);
+            boolean changed = applySingleResult(targetItem, r);
             cacheResult(bizType, r);
             cart.recalculate();
-            saveUpdatedCart(tenantId, bizType, userId, targetItem);
+            if (changed) {
+                cartRedisStorage.updateItem(tenantId, bizType, userId, targetItem);
+            }
         }
     }
 
@@ -111,13 +125,25 @@ public class CartValidateService {
                 }).collect(Collectors.toList());
     }
 
+    /**
+     * 从业务配置表获取校验地址，而非全局配置
+     */
     private List<ProductValidateResult> remoteValidate(String tenantId, String bizType,
                                                         List<ProductValidateDTO> list) {
-        String validateUrl = cartHubProperties.getValidate().getValidateUrl();
+        BizConfigEntity config = bizConfigService.getConfig(tenantId, bizType);
+        String validateUrl = (config != null && StringUtils.isNotBlank(config.getValidateUrl()))
+                ? config.getValidateUrl()
+                : cartHubProperties.getValidate().getValidateUrl();
+
         if (StringUtils.isBlank(validateUrl)) {
-            log.warn("validateUrl not configured, skip remote validation");
+            log.warn("validateUrl not configured for bizType={}, skip remote validation", bizType);
             return new ArrayList<>();
         }
+
+        int timeoutMs = (config != null && config.getValidateTimeout() != null)
+                ? config.getValidateTimeout()
+                : cartHubProperties.getValidate().getTimeoutMs();
+
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("tenantId", tenantId);
@@ -128,17 +154,17 @@ public class CartValidateService {
                     .header("Content-Type", "application/json")
                     .header(CartConstant.HEADER_TENANT_ID, tenantId)
                     .header(CartConstant.HEADER_BIZ_TYPE, bizType)
-                    .timeout(cartHubProperties.getValidate().getTimeoutMs())
+                    .timeout(timeoutMs)
                     .body(JSON.toJSONString(body));
 
             HttpResponse response = request.execute();
             if (!response.isOk()) {
-                log.warn("validate request failed, status={}", response.getStatus());
+                log.warn("validate request failed, bizType={}, status={}", bizType, response.getStatus());
                 return new ArrayList<>();
             }
             JSONObject json = JSON.parseObject(response.body());
             if (json == null || json.getInteger("code") != null && json.getInteger("code") != 200) {
-                log.warn("validate response error, body={}", response.body());
+                log.warn("validate response error, bizType={}, body={}", bizType, response.body());
                 return new ArrayList<>();
             }
             String dataStr = json.getString("data");
@@ -147,49 +173,107 @@ public class CartValidateService {
             }
             return JSON.parseArray(dataStr, ProductValidateResult.class);
         } catch (Exception e) {
-            log.error("remote validate exception", e);
+            log.error("remote validate exception, bizType={}", bizType, e);
             return new ArrayList<>();
         }
     }
 
-    private void applyValidateResult(List<CartItem> items, Map<String, ProductValidateResult> resultMap) {
+    /**
+     * 应用校验结果到商品列表
+     * @return 是否有商品发生了变化（需要回写）
+     */
+    private boolean applyValidateResult(List<CartItem> items, Map<String, ProductValidateResult> resultMap) {
+        boolean hasChanged = false;
         for (CartItem item : items) {
             ProductValidateResult r = resultMap.get(item.getSkuId());
             if (r != null) {
-                applySingleResult(item, r);
+                if (applySingleResult(item, r)) {
+                    hasChanged = true;
+                }
             }
         }
+        return hasChanged;
     }
 
-    private void applySingleResult(CartItem item, ProductValidateResult r) {
-        if (r.getStock() != null) {
+    /**
+     * 应用单个校验结果
+     * @return 商品信息是否变化
+     */
+    private boolean applySingleResult(CartItem item, ProductValidateResult r) {
+        boolean changed = false;
+
+        if (r.getStock() != null && !r.getStock().equals(item.getStock())) {
             item.setStock(r.getStock());
+            changed = true;
         }
-        if (r.getOnShelf() != null) {
+
+        if (r.getOnShelf() != null && !r.getOnShelf().equals(item.getOnShelf())) {
             item.setOnShelf(r.getOnShelf());
+            changed = true;
         }
+
         if (!Boolean.TRUE.equals(r.getValid())) {
-            item.setInvalidMessage(StringUtils.defaultIfBlank(r.getErrorMessage(), "商品不可购买"));
+            String errorMsg = StringUtils.defaultIfBlank(r.getErrorMessage(), "商品不可购买");
+            if (!errorMsg.equals(item.getInvalidMessage())) {
+                item.setInvalidMessage(errorMsg);
+                changed = true;
+            }
         } else {
-            item.setInvalidMessage(null);
+            if (item.getInvalidMessage() != null && !item.getInvalidMessage().isEmpty()) {
+                item.setInvalidMessage(null);
+                changed = true;
+            }
         }
+
         if (r.getCurrentPrice() != null && item.getUnitPrice() != null
                 && r.getCurrentPrice().compareTo(item.getUnitPrice()) != 0) {
             item.setOldPrice(item.getUnitPrice());
             item.setUnitPrice(r.getCurrentPrice());
             item.setPriceChanged(true);
+            changed = true;
         }
+
+        if (StringUtils.isNotBlank(r.getItemName()) && !r.getItemName().equals(item.getItemName())) {
+            item.setItemName(r.getItemName());
+            changed = true;
+        }
+
+        if (StringUtils.isNotBlank(r.getItemImage()) && !r.getItemImage().equals(item.getItemImage())) {
+            item.setItemImage(r.getItemImage());
+            changed = true;
+        }
+
         if (Boolean.TRUE.equals(r.getValid())) {
             item.recalculate();
         }
+
+        return changed;
     }
 
-    private void saveUpdatedCart(String tenantId, String bizType, String userId, CartItem item) {
-        String cartKey = RedisKeyConstant.buildCartKey(tenantId, bizType, userId);
-        org.redisson.api.RMap<String, String> cartMap =
-                ((org.redisson.api.RedissonClient) Objects.requireNonNull(redisTemplate.getConnectionFactory()))
-                        .getMap(cartKey);
-        cartMap.fastPut(item.getSkuId(), JsonUtil.toJson(item));
+    /**
+     * 把校验后有变动的商品回写到Redis，保留价格变动标记
+     */
+    private void persistUpdatedItems(String tenantId, String bizType, String userId,
+                                      List<CartItem> items, Map<String, ProductValidateResult> resultMap) {
+        for (CartItem item : items) {
+            ProductValidateResult r = resultMap.get(item.getSkuId());
+            if (r != null) {
+                try {
+                    cartRedisStorage.updateItem(tenantId, bizType, userId, item);
+                } catch (Exception e) {
+                    log.error("persist updated item error: tenantId={}, bizType={}, userId={}, skuId={}",
+                            tenantId, bizType, userId, item.getSkuId(), e);
+                }
+            }
+        }
+    }
+
+    private boolean isValidateEnabled(String tenantId, String bizType) {
+        if (!cartHubProperties.getValidate().getEnable()) {
+            return false;
+        }
+        BizConfigEntity config = bizConfigService.getConfig(tenantId, bizType);
+        return config != null && StringUtils.isNotBlank(config.getValidateUrl());
     }
 
     private ProductValidateResult getCachedResult(String bizType, String skuId) {
@@ -207,7 +291,15 @@ public class CartValidateService {
 
     private void cacheResult(String bizType, ProductValidateResult result) {
         String key = RedisKeyConstant.buildValidateCacheKey(bizType, result.getSkuId());
-        int expire = cartHubProperties.getValidate().getCacheSeconds();
+        BizConfigEntity config = null;
+        try {
+            config = bizConfigService.getConfig(
+                    com.carhub.common.context.CartContextHolder.getTenantId(), bizType);
+        } catch (Exception ignored) {
+        }
+        int expire = (config != null && config.getValidateCacheSec() != null)
+                ? config.getValidateCacheSec()
+                : cartHubProperties.getValidate().getCacheSeconds();
         stringRedisTemplate.opsForValue().set(key, JsonUtil.toJson(result), Duration.ofSeconds(expire));
     }
 
@@ -218,10 +310,18 @@ public class CartValidateService {
         for (String userId : userIds) {
             try {
                 TimeUnit.MILLISECONDS.sleep(50);
+                Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+                if (cart != null && cart.getItems() != null && !cart.getItems().isEmpty()) {
+                    validateAndRecalculate(tenantId, bizType, userId, cart);
+                }
             } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error("asyncRevalidateUsers error, userId={}", userId, e);
             }
             processed++;
-            if (log.isDebugEnabled()) {
+            if (log.isDebugEnabled() && processed % 100 == 0) {
                 log.debug("asyncRevalidateUsers progress: {}/{}", processed, userIds.size());
             }
         }
