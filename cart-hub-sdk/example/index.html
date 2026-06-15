@@ -87,6 +87,16 @@
         .recommend-badge { display: inline-block; background: #F56C6C; color: #fff; font-size: 10px;
                            padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
         .recommend-empty { text-align: center; padding: 30px; color: #909399; }
+
+        .remark-input { padding: 4px 8px; border: 1px solid #dcdfe6; border-radius: 4px;
+                        width: 100%; font-size: 12px; margin-top: 6px; }
+        .remark-input:focus { border-color: #409EFF; outline: none; }
+        .remark-tag { display: inline-block; padding: 2px 8px; background: #fdf6ec; color: #E6A23C;
+                      border-radius: 4px; font-size: 11px; margin-top: 4px; max-width: 100%;
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .remark-btn { padding: 2px 8px; font-size: 11px; border: 1px solid #E6A23C; color: #E6A23C;
+                      background: #fff; border-radius: 4px; cursor: pointer; margin-top: 4px; }
+        .remark-btn:hover { background: #fdf6ec; }
     </style>
 </head>
 <body>
@@ -134,6 +144,12 @@
             <button class="btn btn-success" onclick="getSummary()">获取汇总</button>
             <button class="btn btn-warning" onclick="mergeCart()">登录后合并购物车</button>
             <button class="btn btn-danger" onclick="clearCart()">清空服务端购物车</button>
+            <div style="margin-top:10px;">
+                <span class="tag tag-warn">备注管理</span>
+                <button class="btn btn-plain" style="padding:4px 12px;" onclick="getAllRemarks()">查看所有备注</button>
+                <button class="btn btn-danger" style="padding:4px 12px;" onclick="clearAllRemarks()">清空所有备注</button>
+            </div>
+            <div id="cartRemarkList" style="margin-top:8px;"></div>
             <pre id="cartResult"></pre>
         </div>
 
@@ -258,6 +274,10 @@
                         <button class="btn" style="padding:4px 12px;margin:2px;"
                             onclick="addToServer('${p.skuId}', ${p.price}, '${p.name}')">+ 加入</button>
                     </div>
+                    <div style="margin-top:4px;">
+                        <input class="remark-input" id="remark_${p.skuId}" placeholder="添加备注（如：少冰）" maxlength="200" />
+                        <button class="remark-btn" onclick="addWithRemark('${p.skuId}', ${p.price}, '${p.name}')">带备注加入</button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -285,11 +305,24 @@
             } catch (e) { log('加入失败: ' + e.message, 'cartResult'); }
         }
 
+        async function addWithRemark(skuId, price, name) {
+            if (!sdk) return alert('请先初始化SDK');
+            const remarkEl = document.getElementById('remark_' + skuId);
+            const remark = remarkEl ? remarkEl.value.trim() : '';
+            try {
+                const result = await sdk.addItem({ skuId, unitPrice: price, quantity: 1, itemName: name, remark: remark || undefined });
+                log('带备注加入购物车成功: ' + result + (remark ? ' 备注: ' + remark : ''), 'cartResult');
+                if (remarkEl) remarkEl.value = '';
+            } catch (e) { log('带备注加入失败: ' + e.message, 'cartResult'); }
+        }
+
         async function getCart() {
             if (!sdk) return alert('请先初始化SDK');
             try {
                 const cart = await sdk.getCart(true);
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+                updateDiscountSummary(cart);
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         }
 
@@ -298,6 +331,9 @@
             try {
                 const cart = await sdk.getCartSimple();
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+                updateDiscountSummary(cart);
+                loadRecommendations(cart);
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         }
 
@@ -652,6 +688,92 @@
                 const cart = await sdk.getCartSimple();
                 loadRecommendations(cart);
             } catch (e) { log('刷新推荐失败: ' + e.message); }
+        }
+
+        function renderCartRemarks(cart) {
+            const container = document.getElementById('cartRemarkList');
+            if (!cart || !cart.items || cart.items.length === 0) {
+                container.innerHTML = '<span style="color:#909399;font-size:12px;">购物车为空</span>';
+                return;
+            }
+            const itemsWithRemark = cart.items.filter(i => i.remark);
+            const itemsWithoutRemark = cart.items.filter(i => !i.remark);
+            let html = '<div style="font-size:13px;">';
+            cart.items.forEach(item => {
+                const name = item.itemName || item.skuId;
+                html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;">';
+                html += '<span style="min-width:100px;font-weight:500;">' + name + '</span>';
+                if (item.remark) {
+                    html += '<span class="remark-tag" style="flex:1;">📝 ' + item.remark + '</span>';
+                    html += '<button class="remark-btn" style="margin-left:4px;" onclick="editRemark(\'' + item.skuId + '\', \'' + item.remark.replace(/'/g, "\\'") + '\')">修改</button>';
+                    html += '<button class="remark-btn" style="margin-left:4px;color:#F56C6C;border-color:#F56C6C;" onclick="deleteRemark(\'' + item.skuId + '\')">删除</button>';
+                } else {
+                    html += '<button class="remark-btn" style="flex:0;" onclick="editRemark(\'' + item.skuId + '\', \'\')">添加备注</button>';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        async function editRemark(skuId, currentRemark) {
+            const newRemark = prompt('请输入备注（如：少冰、刻字内容）：', currentRemark || '');
+            if (newRemark === null) return;
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const result = await sdk.setItemRemark(skuId, newRemark.trim());
+                log('备注更新成功: ' + result, 'cartResult');
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+            } catch (e) { log('备注更新失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function deleteRemark(skuId) {
+            if (!confirm('确定删除该商品备注吗？')) return;
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const result = await sdk.removeItemRemark(skuId);
+                log('备注删除成功: ' + result, 'cartResult');
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+            } catch (e) { log('备注删除失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function getAllRemarks() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const remarks = await sdk.getAllItemRemarks();
+                const container = document.getElementById('cartRemarkList');
+                const entries = Object.entries(remarks || {});
+                if (entries.length === 0) {
+                    container.innerHTML = '<span style="color:#909399;font-size:12px;">暂无商品备注</span>';
+                    return;
+                }
+                let html = '<div style="font-size:13px;">';
+                entries.forEach(([skuId, remark]) => {
+                    html += '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;">';
+                    html += '<span style="min-width:80px;font-weight:500;">' + skuId + '</span>';
+                    html += '<span class="remark-tag" style="flex:1;">📝 ' + remark + '</span>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                container.innerHTML = html;
+                log('查询到 ' + entries.length + ' 条备注', 'cartResult');
+            } catch (e) { log('查询备注失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function clearAllRemarks() {
+            if (!confirm('确定清空所有商品备注吗？')) return;
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const result = await sdk.clearAllItemRemarks();
+                log('所有备注已清空: ' + result, 'cartResult');
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                renderCartRemarks(cart);
+            } catch (e) { log('清空备注失败: ' + e.message, 'cartResult'); }
         }
 
         renderProducts();

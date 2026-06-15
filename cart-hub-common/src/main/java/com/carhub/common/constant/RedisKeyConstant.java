@@ -30,8 +30,6 @@ public class RedisKeyConstant {
 
     public static final String SKU_CO_OCCURRENCE_KEY = CART_PREFIX + "cooccurrence:{%s}:{%s}";
 
-    public static final String CART_REMARK_KEY = CART_PREFIX + "remark:{%s}:{%s}:{%s}";
-
     public static String buildCartKey(String tenantId, String bizType, String userId) {
         return String.format(CART_HASH_KEY, tenantId, bizType, userId);
     }
@@ -74,10 +72,6 @@ public class RedisKeyConstant {
 
     public static String buildSkuCoOccurrenceKey(String tenantId, String bizType) {
         return String.format(SKU_CO_OCCURRENCE_KEY, tenantId, bizType);
-    }
-
-    public static String buildCartRemarkKey(String tenantId, String bizType, String userId) {
-        return String.format(CART_REMARK_KEY, tenantId, bizType, userId);
     }
 
 }

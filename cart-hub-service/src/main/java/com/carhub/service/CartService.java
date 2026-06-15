@@ -78,10 +78,6 @@ public class CartService {
             throw new BusinessException(ResultCode.CART_ITEM_INVALID.getCode(), "商品已在购物车中，请使用修改接口调整数量");
         }
 
-        if (StringUtils.isNotBlank(processedRemark)) {
-            cartRedisStorage.setItemRemark(tenantId, bizType, userId, dto.getSkuId(), processedRemark);
-        }
-
         cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_ADD,
                 dto.getSkuId(), null, dto.getQuantity(), null, dto.getUnitPrice(), null);
 
@@ -128,9 +124,6 @@ public class CartService {
 
         boolean updated = cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
         if (updated) {
-            if (dto.getRemark() != null) {
-                cartRedisStorage.setItemRemark(tenantId, bizType, userId, dto.getSkuId(), processedRemark);
-            }
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
                     dto.getSkuId(), oldItem.getQuantity(), dto.getQuantity(),
                     oldItem.getUnitPrice(), dto.getUnitPrice(), null);
@@ -178,7 +171,6 @@ public class CartService {
 
         boolean removed = cartRedisStorage.removeItem(tenantId, bizType, userId, skuId);
         if (removed) {
-            cartRedisStorage.removeItemRemark(tenantId, bizType, userId, skuId);
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_DELETE,
                     skuId, oldItem.getQuantity(), 0, null, null, null);
             cartStatisticsService.recordDelete(tenantId, bizType, userId);
@@ -198,7 +190,6 @@ public class CartService {
         long count = cartRedisStorage.batchRemove(tenantId, bizType, userId, dto.getSkuIds());
         if (count > 0) {
             for (String skuId : dto.getSkuIds()) {
-                cartRedisStorage.removeItemRemark(tenantId, bizType, userId, skuId);
                 cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_DELETE,
                         skuId, null, 0, null, null, "batchRemove");
             }
@@ -220,7 +211,6 @@ public class CartService {
                 null, null, null, null, null, null);
         boolean result = cartRedisStorage.clearCart(tenantId, bizType, userId);
         if (result) {
-            cartRedisStorage.clearAllItemRemarks(tenantId, bizType, userId);
             cartStatisticsService.recordClear(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
@@ -293,15 +283,13 @@ public class CartService {
                 .skuId(skuId)
                 .remark(processedRemark)
                 .build();
-        cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
-
-        boolean result = cartRedisStorage.setItemRemark(tenantId, bizType, userId, skuId, processedRemark);
-        if (result) {
+        boolean updated = cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
+        if (updated) {
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
                     skuId, null, null, null, null, "update remark");
             asyncSyncDb(tenantId, bizType, userId);
         }
-        return result;
+        return updated;
     }
 
     public String getItemRemark(String skuId) {
@@ -309,7 +297,8 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
-        return cartRedisStorage.getItemRemark(tenantId, bizType, userId, skuId);
+        CartItem item = cartRedisStorage.getItem(tenantId, bizType, userId, skuId);
+        return item != null ? item.getRemark() : null;
     }
 
     public Map<String, String> getAllItemRemarks() {
@@ -317,7 +306,16 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
-        return cartRedisStorage.getAllItemRemarks(tenantId, bizType, userId);
+        List<CartItem> items = cartRedisStorage.getItems(tenantId, bizType, userId);
+        Map<String, String> remarks = new LinkedHashMap<>();
+        if (items != null) {
+            for (CartItem item : items) {
+                if (item.getRemark() != null) {
+                    remarks.put(item.getSkuId(), item.getRemark());
+                }
+            }
+        }
+        return remarks;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -331,9 +329,7 @@ public class CartService {
                 .skuId(skuId)
                 .remark("")
                 .build();
-        cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
-
-        return cartRedisStorage.removeItemRemark(tenantId, bizType, userId, skuId);
+        return cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -342,7 +338,23 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
-        return cartRedisStorage.clearAllItemRemarks(tenantId, bizType, userId);
+        List<CartItem> items = cartRedisStorage.getItems(tenantId, bizType, userId);
+        if (items == null || items.isEmpty()) {
+            return true;
+        }
+        boolean allSuccess = true;
+        for (CartItem item : items) {
+            if (StringUtils.isNotBlank(item.getRemark())) {
+                CartItem updateItem = CartItem.builder()
+                        .skuId(item.getSkuId())
+                        .remark("")
+                        .build();
+                if (!cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem)) {
+                    allSuccess = false;
+                }
+            }
+        }
+        return allSuccess;
     }
 
     private String processRemark(String remark) {

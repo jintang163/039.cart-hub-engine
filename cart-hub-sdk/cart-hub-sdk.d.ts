@@ -55,6 +55,12 @@ export declare class CartHubSDK {
     getDiscountResult(): Promise<DiscountResultVO>;
     getRecommendations(options?: RecommendOptions): Promise<RecommendItemVO[]>;
 
+    setItemRemark(skuId: string, remark: string): Promise<boolean>;
+    getItemRemark(skuId: string): Promise<string>;
+    getAllItemRemarks(): Promise<Record<string, string>>;
+    removeItemRemark(skuId: string): Promise<boolean>;
+    clearAllItemRemarks(): Promise<boolean>;
+
     on(event: string, callback: (data: any) => void): () => void;
     off(event: string, callback: (data: any) => void): void;
 
@@ -86,6 +92,7 @@ export interface CartItemInput {
     stock?: number;
     selected?: boolean;
     addSource?: string;
+    remark?: string;
     extInfo?: Record<string, any>;
 }
 
@@ -97,6 +104,7 @@ export interface UpdateCartItemInput {
     itemName?: string;
     itemImage?: string;
     itemSpec?: Record<string, string>;
+    remark?: string;
     extInfo?: Record<string, any>;
 }
 
@@ -127,6 +135,7 @@ export interface CartItemVO {
     addTime?: number;
     addSource?: string;
     invalidMessage?: string;
+    remark?: string;
     extInfo?: Record<string, any>;
 }
 

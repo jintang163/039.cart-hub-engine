@@ -460,6 +460,42 @@
             return this._request('/api/cart/recommend?' + qs.toString());
         }
 
+        async setItemRemark(skuId, remark) {
+            const result = await this._request('/api/cart/item/remark', {
+                method: 'PUT',
+                body: { skuId, remark }
+            });
+            this._emit('remarkChanged', { skuId, remark });
+            this._emit('cartChanged', result);
+            return result;
+        }
+
+        async getItemRemark(skuId) {
+            const qs = new URLSearchParams({ skuId });
+            return this._request('/api/cart/item/remark?' + qs.toString());
+        }
+
+        async getAllItemRemarks() {
+            return this._request('/api/cart/items/remarks');
+        }
+
+        async removeItemRemark(skuId) {
+            const qs = new URLSearchParams({ skuId });
+            const result = await this._request('/api/cart/item/remark?' + qs.toString(), {
+                method: 'DELETE'
+            });
+            this._emit('remarkChanged', { skuId, remark: null });
+            this._emit('cartChanged', result);
+            return result;
+        }
+
+        async clearAllItemRemarks() {
+            const result = await this._request('/api/cart/items/remarks', { method: 'DELETE' });
+            this._emit('remarkChanged', { skuId: null, remark: null, allCleared: true });
+            this._emit('cartChanged', result);
+            return result;
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);
