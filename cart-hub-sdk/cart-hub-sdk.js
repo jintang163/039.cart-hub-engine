@@ -380,6 +380,53 @@
             return this._request('/api/cart/discount/clear', { method: 'DELETE' });
         }
 
+        async applyCouponCode(couponCode) {
+            return this._request('/api/cart/coupon/apply-code', {
+                method: 'POST',
+                body: { couponCode }
+            });
+        }
+
+        async applyCoupon(couponId) {
+            return this._request('/api/cart/coupon/apply/' + couponId, { method: 'POST' });
+        }
+
+        async removeCoupon() {
+            return this._request('/api/cart/coupon/remove', { method: 'DELETE' });
+        }
+
+        async applyPromotion(promotionId) {
+            return this._request('/api/cart/promotion/apply/' + promotionId, { method: 'POST' });
+        }
+
+        async removePromotion(promotionId) {
+            return this._request('/api/cart/promotion/remove/' + promotionId, { method: 'DELETE' });
+        }
+
+        async recalculateDiscount() {
+            return this._request('/api/cart/discount/recalculate', { method: 'POST' });
+        }
+
+        async listAvailableCoupons(totalAmount) {
+            const qs = new URLSearchParams();
+            if (totalAmount !== undefined && totalAmount !== null) {
+                qs.set('totalAmount', String(totalAmount));
+            }
+            return this._request('/api/cart/coupon/available?' + qs.toString());
+        }
+
+        async listAvailablePromotions(totalAmount) {
+            const qs = new URLSearchParams();
+            if (totalAmount !== undefined && totalAmount !== null) {
+                qs.set('totalAmount', String(totalAmount));
+            }
+            return this._request('/api/cart/promotion/available?' + qs.toString());
+        }
+
+        async getDiscountResult() {
+            return this._request('/api/cart/discount/result');
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);

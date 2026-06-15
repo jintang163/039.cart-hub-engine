@@ -738,27 +738,51 @@ class PromotionEngineService {
     private BigDecimal calculateDiscountAmount(String promotionType, BigDecimal totalAmount,
                                                BigDecimal discountAmount, Integer discountPercent,
                                                BigDecimal maxDiscountAmount) {
+        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
         BigDecimal result = BigDecimal.ZERO;
 
         switch (promotionType) {
             case "fixed":
             case "full_reduction":
                 result = discountAmount != null ? discountAmount : BigDecimal.ZERO;
+                if (result.compareTo(totalAmount) > 0) {
+                    result = totalAmount;
+                }
                 break;
             case "percent":
             case "discount":
-                if (discountPercent != null && discountPercent > 0) {
-                    BigDecimal percent = BigDecimal.valueOf(discountPercent).divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
-                    result = totalAmount.multiply(BigDecimal.ONE.subtract(percent));
+                if (discountPercent != null && discountPercent > 0 && discountPercent <= 100) {
+                    BigDecimal discountRate = BigDecimal.valueOf(discountPercent)
+                            .divide(BigDecimal.valueOf(100), 4, BigDecimal.ROUND_HALF_UP);
+                    BigDecimal payRate = BigDecimal.ONE.subtract(discountRate);
+                    result = totalAmount.multiply(payRate);
                 }
+                break;
+            case "gift":
+                result = BigDecimal.ZERO;
                 break;
             default:
                 result = discountAmount != null ? discountAmount : BigDecimal.ZERO;
+                if (result.compareTo(totalAmount) > 0) {
+                    result = totalAmount;
+                }
                 break;
         }
 
-        if (maxDiscountAmount != null && result.compareTo(maxDiscountAmount) > 0) {
+        if (result.compareTo(BigDecimal.ZERO) < 0) {
+            result = BigDecimal.ZERO;
+        }
+
+        if (maxDiscountAmount != null && maxDiscountAmount.compareTo(BigDecimal.ZERO) > 0
+                && result.compareTo(maxDiscountAmount) > 0) {
             result = maxDiscountAmount;
+        }
+
+        if (result.compareTo(totalAmount) > 0) {
+            result = totalAmount;
         }
 
         return result.setScale(2, BigDecimal.ROUND_HALF_UP);

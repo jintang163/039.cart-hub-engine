@@ -2,6 +2,8 @@ package com.carhub.domain.vo;
 
 import com.carhub.domain.model.CartDiscount;
 import com.carhub.domain.model.CartItem;
+import com.carhub.domain.model.DiscountDetail;
+import com.carhub.domain.model.GiftItem;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -54,5 +56,19 @@ public class CartVO implements Serializable {
     private Long version;
 
     private Long updateTime;
+
+    private String selectedCouponId;
+
+    private List<String> selectedPromotionIds;
+
+    private String couponCode;
+
+    private List<DiscountDetail> discountDetails;
+
+    private List<GiftItem> gifts;
+
+    private Boolean discountCalculated;
+
+    private Long discountCalculateTime;
 
 }

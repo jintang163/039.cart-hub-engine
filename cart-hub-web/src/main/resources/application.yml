@@ -95,6 +95,13 @@ cart-hub:
   limit:
     max-cart-size: 200
     max-item-quantity: 999
+  promotion:
+    enable: true
+    calculate-url: http://localhost:8081/promotion/calculate
+    timeout-ms: 5000
+    coupon-list-url: http://localhost:8081/promotion/coupon/list
+    promotion-list-url: http://localhost:8081/promotion/list
+    cache-seconds: 60
 
 knife4j:
   enable: true

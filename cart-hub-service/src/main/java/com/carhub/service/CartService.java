@@ -38,6 +38,7 @@ public class CartService {
     private final CartStatisticsService cartStatisticsService;
     private final CartHubProperties cartHubProperties;
     private final RedissonClient redissonClient;
+    private final CartPromotionService cartPromotionService;
 
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -81,6 +82,7 @@ public class CartService {
         cartStatisticsService.recordAdd(tenantId, bizType, userId, dto.getQuantity(), itemAmount);
 
         asyncSyncDb(tenantId, bizType, userId);
+        recalculateDiscountIfNeeded(tenantId, bizType, userId);
         log.info("addItem success: tenantId={}, bizType={}, userId={}, skuId={}, qty={}",
                 tenantId, bizType, userId, dto.getSkuId(), dto.getQuantity());
         return true;
@@ -118,6 +120,7 @@ public class CartService {
                     oldItem.getUnitPrice(), dto.getUnitPrice(), null);
             cartStatisticsService.recordUpdate(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
+            recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
         return updated;
     }
@@ -140,6 +143,7 @@ public class CartService {
                     skuId, oldItem.getQuantity(), newQty.intValue(), null, null, null);
             cartStatisticsService.recordUpdate(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
+            recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
         return newQty;
     }
@@ -162,6 +166,7 @@ public class CartService {
                     skuId, oldItem.getQuantity(), 0, null, null, null);
             cartStatisticsService.recordDelete(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
+            recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
         return removed;
     }
@@ -181,6 +186,7 @@ public class CartService {
             }
             cartStatisticsService.recordDelete(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
+            recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
         return count;
     }
@@ -198,6 +204,7 @@ public class CartService {
         if (result) {
             cartStatisticsService.recordClear(tenantId, bizType, userId);
             asyncSyncDb(tenantId, bizType, userId);
+            recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
         return result;
     }
@@ -289,6 +296,7 @@ public class CartService {
                 null, null, null, null, null, "merged " + mergedCount + " items");
 
         asyncSyncDb(tenantId, bizType, userId);
+        recalculateDiscountIfNeeded(tenantId, bizType, userId);
         log.info("mergeCart success: tenantId={}, bizType={}, userId={}, mergedCount={}",
                 tenantId, bizType, userId, mergedCount);
         return getCartSimple();
@@ -329,7 +337,14 @@ public class CartService {
                 .discounts(cart.getDiscounts())
                 .version(cart.getVersion())
                 .updateTime(cart.getUpdateTime())
-                .validateEnabled(cartHubProperties.getValidate().getEnable() && validate);
+                .validateEnabled(cartHubProperties.getValidate().getEnable() && validate)
+                .selectedCouponId(cart.getSelectedCouponId())
+                .selectedPromotionIds(cart.getSelectedPromotionIds())
+                .couponCode(cart.getCouponCode())
+                .discountDetails(cart.getDiscountDetails())
+                .gifts(cart.getGifts())
+                .discountCalculated(cart.getDiscountCalculated())
+                .discountCalculateTime(cart.getDiscountCalculateTime());
 
         if (cart.getItems() != null && !cart.getItems().isEmpty()) {
             List<CartItem> validItems = cart.getItems().stream()
@@ -382,6 +397,22 @@ public class CartService {
     private void asyncSyncDb(String tenantId, String bizType, String userId) {
         if (cartHubProperties.getSync().getEnableDbSync()) {
             cartDbSyncService.markNeedSync(tenantId, bizType, userId);
+        }
+    }
+
+    private void recalculateDiscountIfNeeded(String tenantId, String bizType, String userId) {
+        try {
+            if (cartHubProperties.getPromotion() != null && Boolean.TRUE.equals(cartHubProperties.getPromotion().getEnable())) {
+                Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+                if (cart != null
+                        && (StringUtils.isNotBlank(cart.getSelectedCouponId())
+                        || (cart.getSelectedPromotionIds() != null && !cart.getSelectedPromotionIds().isEmpty()))) {
+                    cartPromotionService.recalculateDiscount(cart);
+                    cartRedisStorage.saveCartMeta(tenantId, bizType, userId, cart);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Auto recalculate discount failed: {}", e.getMessage());
         }
     }
 

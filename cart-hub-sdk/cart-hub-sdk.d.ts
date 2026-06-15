@@ -44,6 +44,16 @@ export declare class CartHubSDK {
     listDiscounts(): Promise<CartDiscount[]>;
     clearDiscounts(): Promise<CartData>;
 
+    applyCouponCode(couponCode: string): Promise<CartVO>;
+    applyCoupon(couponId: string): Promise<CartVO>;
+    removeCoupon(): Promise<CartVO>;
+    applyPromotion(promotionId: string): Promise<CartVO>;
+    removePromotion(promotionId: string): Promise<CartVO>;
+    recalculateDiscount(): Promise<CartVO>;
+    listAvailableCoupons(totalAmount?: number): Promise<CouponVO[]>;
+    listAvailablePromotions(totalAmount?: number): Promise<PromotionVO[]>;
+    getDiscountResult(): Promise<DiscountResultVO>;
+
     on(event: string, callback: (data: any) => void): () => void;
     off(event: string, callback: (data: any) => void): void;
 
@@ -117,41 +127,6 @@ export interface CartItemVO {
     addSource?: string;
     invalidMessage?: string;
     extInfo?: Record<string, any>;
-}
-
-export interface CartDiscount {
-    discountId: string;
-    discountType: string;
-    discountName: string;
-    discountCode?: string;
-    discountAmount: string;
-    discountRule?: Record<string, any>;
-    scope: string;
-    applySkus?: string[];
-    enable: boolean;
-    errorMessage?: string;
-    extInfo?: Record<string, any>;
-}
-
-export interface CartVO {
-    tenantId: string;
-    bizType: string;
-    userId: string;
-    items: CartItemVO[];
-    validItems: CartItemVO[];
-    invalidItems: CartItemVO[];
-    itemCount: number;
-    validItemCount: number;
-    totalQuantity: number;
-    totalAmount: string;
-    discountAmount: string;
-    payAmount: string;
-    hasPriceChanged: boolean;
-    hasInvalidItem: boolean;
-    discounts: CartDiscount[];
-    validateEnabled: boolean;
-    version: number;
-    updateTime: number;
 }
 
 export interface CartData {
@@ -250,6 +225,138 @@ export interface ApplyDiscountOptions {
     discountAmount: number;
     applySkus?: string[];
     scope?: 'all' | 'item';
+}
+
+export interface CouponVO {
+    couponId: string;
+    couponName: string;
+    couponType: string;
+    promotionType?: string;
+    thresholdAmount: string;
+    discountAmount?: string;
+    discountPercent?: number;
+    maxDiscountAmount?: string;
+    couponDesc?: string;
+    startTime?: string;
+    endTime?: string;
+    available: boolean;
+    unavailableReason?: string;
+    applySkus?: string[];
+    stackable?: boolean;
+    priority?: number;
+}
+
+export interface GiftItemVO {
+    skuId: string;
+    itemName?: string;
+    itemImage?: string;
+    quantity?: number;
+    unitPrice?: string;
+}
+
+export interface PromotionVO {
+    promotionId: string;
+    promotionName: string;
+    promotionType: string;
+    promotionDesc?: string;
+    thresholdAmount: string;
+    discountAmount?: string;
+    discountPercent?: number;
+    maxDiscountAmount?: string;
+    startTime?: string;
+    endTime?: string;
+    available: boolean;
+    unavailableReason?: string;
+    applySkus?: string[];
+    stackable?: boolean;
+    priority?: number;
+    gifts?: GiftItemVO[];
+}
+
+export interface DiscountDetailVO {
+    discountId: string;
+    discountType: string;
+    discountName: string;
+    discountCode?: string;
+    discountAmount: string;
+    promotionType?: string;
+    promotionName?: string;
+    promotionId?: string;
+    applySkus?: string[];
+    skuDiscountAmount?: Record<string, string>;
+    thresholdAmount?: string;
+    discountValue?: string;
+    discountPercent?: number;
+    maxDiscountAmount?: string;
+    gifts?: GiftItemVO[];
+    extInfo?: Record<string, any>;
+}
+
+export interface DiscountResultVO {
+    totalAmount: string;
+    discountAmount: string;
+    payAmount: string;
+    discounts?: CartDiscount[];
+    discountDetails?: DiscountDetailVO[];
+    gifts?: GiftItemVO[];
+    errorMessage?: string;
+    success: boolean;
+}
+
+export interface CartDiscount {
+    discountId: string;
+    discountType: string;
+    discountName: string;
+    discountCode?: string;
+    discountAmount: string;
+    discountRule?: Record<string, any>;
+    scope: string;
+    applySkus?: string[];
+    enable: boolean;
+    errorMessage?: string;
+    extInfo?: Record<string, any>;
+    promotionType?: string;
+    promotionId?: string;
+    promotionName?: string;
+    thresholdAmount?: string;
+    discountValue?: string;
+    discountPercent?: number;
+    maxDiscountAmount?: string;
+    gifts?: GiftItemVO[];
+    details?: DiscountDetailVO[];
+    skuDiscountAmount?: Record<string, string>;
+    startTime?: string;
+    endTime?: string;
+    stackable?: boolean;
+    priority?: number;
+}
+
+export interface CartVO {
+    tenantId: string;
+    bizType: string;
+    userId: string;
+    items: CartItemVO[];
+    validItems: CartItemVO[];
+    invalidItems: CartItemVO[];
+    itemCount: number;
+    validItemCount: number;
+    totalQuantity: number;
+    totalAmount: string;
+    discountAmount: string;
+    payAmount: string;
+    hasPriceChanged: boolean;
+    hasInvalidItem: boolean;
+    discounts: CartDiscount[];
+    validateEnabled: boolean;
+    version: number;
+    updateTime: number;
+    selectedCouponId?: string;
+    selectedPromotionIds?: string[];
+    couponCode?: string;
+    discountDetails?: DiscountDetailVO[];
+    gifts?: GiftItemVO[];
+    discountCalculated?: boolean;
+    discountCalculateTime?: number;
 }
 
 export default CartHubSDK;

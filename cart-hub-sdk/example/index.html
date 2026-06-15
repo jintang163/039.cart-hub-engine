@@ -36,6 +36,33 @@
         .tag-warn { background: #fdf6ec; color: #E6A23C; }
         .tag-danger { background: #fef0f0; color: #F56C6C; }
         .tag-success { background: #f0f9eb; color: #67C23A; }
+
+        .coupon-card { border: 1px solid #ebeef5; border-radius: 8px; padding: 16px; background: #fff;
+                       position: relative; cursor: pointer; transition: all 0.2s; }
+        .coupon-card:hover { border-color: #409EFF; box-shadow: 0 2px 12px rgba(64,158,255,0.15); }
+        .coupon-card.selected { border-color: #F56C6C; background: #fef0f0; }
+        .coupon-card.disabled { opacity: 0.5; cursor: not-allowed; }
+        .coupon-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .coupon-amount { color: #F56C6C; font-size: 28px; font-weight: bold; }
+        .coupon-unit { font-size: 14px; font-weight: normal; }
+        .coupon-threshold { color: #606266; font-size: 12px; margin-top: 4px; }
+        .coupon-desc { color: #909399; font-size: 12px; margin-top: 6px; line-height: 1.4; }
+        .coupon-name { color: #303133; font-weight: 600; margin-bottom: 4px; }
+        .coupon-type-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .coupon-type-full { background: #fdf6ec; color: #E6A23C; }
+        .coupon-type-discount { background: #ecf5ff; color: #409EFF; }
+        .coupon-type-gift { background: #f0f9eb; color: #67C23A; }
+        .gift-list { margin-top: 8px; padding: 8px; background: #f0f9eb; border-radius: 4px; }
+        .gift-item { display: flex; align-items: center; font-size: 12px; color: #67C23A; margin: 4px 0; }
+        .gift-item::before { content: '🎁'; margin-right: 6px; }
+
+        .discount-summary { background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; padding: 20px; color: #fff; }
+        .summary-row { display: flex; justify-content: space-between; padding: 6px 0; }
+        .summary-label { opacity: 0.9; }
+        .summary-value { font-weight: 600; }
+        .summary-total { border-top: 1px solid rgba(255,255,255,0.3); margin-top: 10px; padding-top: 12px; }
+        .summary-total .summary-value { font-size: 24px; color: #ffd700; }
+        .detail-item { background: rgba(255,255,255,0.15); border-radius: 4px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -93,6 +120,47 @@
             <button class="btn btn-plain" onclick="listShares()">我的分享列表</button>
             <button class="btn btn-plain" onclick="listSnapshots()">我的快照列表</button>
             <pre id="shareResult"></pre>
+        </div>
+
+        <div class="card">
+            <h2>6. 优惠券 & 促销活动</h2>
+            <div class="discount-summary" id="discountSummary" style="display:none;">
+                <div class="summary-row">
+                    <span class="summary-label">商品总金额</span>
+                    <span class="summary-value" id="sumTotalAmount">¥0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">优惠金额</span>
+                    <span class="summary-value" id="sumDiscountAmount">-¥0.00</span>
+                </div>
+                <div class="summary-total summary-row">
+                    <span class="summary-label">实付金额</span>
+                    <span class="summary-value" id="sumPayAmount">¥0.00</span>
+                </div>
+                <div id="discountDetails"></div>
+                <div id="giftList" style="margin-top:12px;"></div>
+            </div>
+            <div style="margin-top:16px;">
+                <button class="btn" onclick="listAvailableCoupons()">查询可用优惠券</button>
+                <button class="btn btn-success" onclick="listAvailablePromotions()">查询可用促销</button>
+                <button class="btn btn-warning" onclick="recalculateDiscount()">重新计算优惠</button>
+            </div>
+            <div style="margin-top:10px;">
+                <label>优惠券码：</label>
+                <input type="text" id="couponCodeInput" placeholder="输入优惠券码" style="width:160px;">
+                <button class="btn btn-plain" onclick="applyCouponCode()">使用优惠券码</button>
+                <button class="btn btn-danger" onclick="removeCoupon()">移除优惠券</button>
+            </div>
+        </div>
+
+        <div class="card" id="couponListContainer" style="display:none;">
+            <h2>7. 可用优惠券列表</h2>
+            <div class="grid" id="couponList"></div>
+        </div>
+
+        <div class="card" id="promotionListContainer" style="display:none;">
+            <h2>8. 可用促销活动列表</h2>
+            <div class="grid" id="promotionList"></div>
         </div>
     </div>
 
@@ -251,6 +319,231 @@
                 document.getElementById('shareResult').textContent = JSON.stringify(r, null, 2);
             } catch (e) { log('失败: ' + e.message, 'shareResult'); }
         }
+
+        function getCouponTypeClass(type) {
+            switch (type) {
+                case 'full_reduction': return 'coupon-type-full';
+                case 'discount': case 'percent': return 'coupon-type-discount';
+                case 'gift': return 'coupon-type-gift';
+                default: return 'coupon-type-full';
+            }
+        }
+
+        function getCouponTypeLabel(type) {
+            switch (type) {
+                case 'full_reduction': case 'fixed': return '满减';
+                case 'discount': case 'percent': return '折扣';
+                case 'gift': return '赠品';
+                default: return '优惠';
+            }
+        }
+
+        function formatAmountDisplay(coupon) {
+            if (coupon.promotionType === 'discount' || coupon.couponType === 'percent') {
+                return (coupon.discountPercent ? coupon.discountPercent / 10 : '') + '<span class="coupon-unit">折</span>';
+            }
+            return '<span class="coupon-unit">¥</span>' + (coupon.discountAmount || '0');
+        }
+
+        async function listAvailableCoupons() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCartSimple();
+                const totalAmount = parseFloat(cart.totalAmount || '0');
+                const coupons = await sdk.listAvailableCoupons(totalAmount);
+                const container = document.getElementById('couponListContainer');
+                const list = document.getElementById('couponList');
+                container.style.display = 'block';
+
+                if (coupons.length === 0) {
+                    list.innerHTML = '<p style="color:#909399;padding:20px;text-align:center;">暂无可用优惠券</p>';
+                    return;
+                }
+
+                list.innerHTML = coupons.map(c => `
+                    <div class="coupon-card ${c.available ? '' : 'disabled'}" onclick="selectCoupon('${c.couponId}', ${c.available})">
+                        <div class="coupon-header">
+                            <div>
+                                <span class="coupon-type-tag ${getCouponTypeClass(c.promotionType || c.couponType)}">
+                                    ${getCouponTypeLabel(c.promotionType || c.couponType)}
+                                </span>
+                                <span class="coupon-name">${c.couponName}</span>
+                            </div>
+                        </div>
+                        <div class="coupon-amount">${formatAmountDisplay(c)}</div>
+                        <div class="coupon-threshold">满 ¥${c.thresholdAmount} 可用</div>
+                        <div class="coupon-desc">
+                            ${c.couponDesc || ''}
+                            ${c.startTime && c.endTime ? '<br>有效期: ' + c.startTime.substring(0, 10) + ' ~ ' + c.endTime.substring(0, 10) : ''}
+                        </div>
+                        ${c.available ? '' : `<div style="color:#F56C6C;margin-top:8px;font-size:12px;">${c.unavailableReason || '不可用'}</div>`}
+                    </div>
+                `).join('');
+                log('查询到 ' + coupons.length + ' 张优惠券', 'cartResult');
+            } catch (e) { log('查询失败: ' + e.message, 'cartResult'); }
+        }
+
+        function selectCoupon(couponId, available) {
+            if (!available) return;
+            if (confirm('确定使用该优惠券吗？')) {
+                applyCoupon(couponId);
+            }
+        }
+
+        async function applyCoupon(couponId) {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.applyCoupon(couponId);
+                log('优惠券使用成功!', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('使用失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function applyCouponCode() {
+            const code = document.getElementById('couponCodeInput').value.trim();
+            if (!code) return alert('请输入优惠券码');
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.applyCouponCode(code);
+                log('优惠券码使用成功!', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('使用失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function removeCoupon() {
+            if (!sdk) return alert('请先初始化SDK');
+            if (!confirm('确定移除优惠券吗？')) return;
+            try {
+                const cart = await sdk.removeCoupon();
+                log('已移除优惠券', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function listAvailablePromotions() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCartSimple();
+                const totalAmount = parseFloat(cart.totalAmount || '0');
+                const promotions = await sdk.listAvailablePromotions(totalAmount);
+                const container = document.getElementById('promotionListContainer');
+                const list = document.getElementById('promotionList');
+                container.style.display = 'block';
+
+                if (promotions.length === 0) {
+                    list.innerHTML = '<p style="color:#909399;padding:20px;text-align:center;">暂无可用促销活动</p>';
+                    return;
+                }
+
+                list.innerHTML = promotions.map(p => `
+                    <div class="coupon-card ${p.available ? '' : 'disabled'}" onclick="selectPromotion('${p.promotionId}', ${p.available})">
+                        <div class="coupon-header">
+                            <div>
+                                <span class="coupon-type-tag ${getCouponTypeClass(p.promotionType)}">
+                                    ${getCouponTypeLabel(p.promotionType)}
+                                </span>
+                                <span class="coupon-name">${p.promotionName}</span>
+                            </div>
+                            <span style="font-size:12px;color:#909399;">优先级: ${p.priority || 0}</span>
+                        </div>
+                        <div class="coupon-amount">${formatAmountDisplay(p)}</div>
+                        <div class="coupon-threshold">满 ¥${p.thresholdAmount} 可用</div>
+                        <div class="coupon-desc">
+                            ${p.promotionDesc || ''}
+                            ${p.startTime && p.endTime ? '<br>活动时间: ' + p.startTime.substring(0, 10) + ' ~ ' + p.endTime.substring(0, 10) : ''}
+                        </div>
+                        ${p.gifts && p.gifts.length > 0 ? `
+                            <div class="gift-list">
+                                ${p.gifts.map(g => `<div class="gift-item">${g.itemName || g.skuId} x${g.quantity || 1}</div>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${p.available ? '' : `<div style="color:#F56C6C;margin-top:8px;font-size:12px;">${p.unavailableReason || '不可用'}</div>`}
+                    </div>
+                `).join('');
+                log('查询到 ' + promotions.length + ' 个促销活动', 'cartResult');
+            } catch (e) { log('查询失败: ' + e.message, 'cartResult'); }
+        }
+
+        function selectPromotion(promotionId, available) {
+            if (!available) return;
+            if (confirm('确定参与该促销活动吗？')) {
+                applyPromotion(promotionId);
+            }
+        }
+
+        async function applyPromotion(promotionId) {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.applyPromotion(promotionId);
+                log('促销活动绑定成功!', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('绑定失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function removePromotion(promotionId) {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.removePromotion(promotionId);
+                log('已移除促销活动', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function recalculateDiscount() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.recalculateDiscount();
+                log('优惠重新计算完成', 'cartResult');
+                updateDiscountSummary(cart);
+            } catch (e) { log('计算失败: ' + e.message, 'cartResult'); }
+        }
+
+        function updateDiscountSummary(cart) {
+            const summary = document.getElementById('discountSummary');
+            if (!cart || parseFloat(cart.totalAmount || '0') <= 0) {
+                summary.style.display = 'none';
+                return;
+            }
+            summary.style.display = 'block';
+            document.getElementById('sumTotalAmount').textContent = '¥' + cart.totalAmount;
+            document.getElementById('sumDiscountAmount').textContent = '-¥' + (cart.discountAmount || '0.00');
+            document.getElementById('sumPayAmount').textContent = '¥' + (cart.payAmount || cart.totalAmount);
+
+            const detailsEl = document.getElementById('discountDetails');
+            if (cart.discounts && cart.discounts.length > 0) {
+                detailsEl.innerHTML = cart.discounts
+                    .filter(d => d.enable)
+                    .map(d => `<div class="detail-item">${d.discountName}: -¥${d.discountAmount}</div>`)
+                    .join('');
+            } else {
+                detailsEl.innerHTML = '';
+            }
+
+            const giftsEl = document.getElementById('giftList');
+            if (cart.gifts && cart.gifts.length > 0) {
+                giftsEl.innerHTML = '<div style="margin-bottom:6px;">🎁 赠品清单:</div>' +
+                    cart.gifts.map(g => `<div class="gift-item" style="color:#fff;">${g.itemName || g.skuId} x${g.quantity || 1}</div>`).join('');
+            } else {
+                giftsEl.innerHTML = '';
+            }
+        }
+
+        const _origGetCart = async function() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCart(true);
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                updateDiscountSummary(cart);
+            } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
+        };
+        const _origGetCartSimple = async function() {
+            if (!sdk) return alert('请先初始化SDK');
+            try {
+                const cart = await sdk.getCartSimple();
+                document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
+                updateDiscountSummary(cart);
+            } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
+        };
 
         renderProducts();
         initSDK();
