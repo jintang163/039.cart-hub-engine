@@ -4,6 +4,9 @@ import com.carhub.common.result.R;
 import com.carhub.domain.dto.*;
 import com.carhub.domain.model.Cart;
 import com.carhub.domain.vo.CartVO;
+import com.carhub.domain.vo.CouponVO;
+import com.carhub.domain.vo.DiscountResultVO;
+import com.carhub.domain.vo.PromotionVO;
 import com.carhub.service.*;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +32,8 @@ public class CartController {
     private final CartShareService cartShareService;
     private final CartSnapshotService cartSnapshotService;
     private final CartDiscountService cartDiscountService;
+    private final CartPromotionService cartPromotionService;
+    private final PromotionEngineService promotionEngineService;
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
@@ -200,5 +206,96 @@ public class CartController {
     public R<Cart> clearDiscounts() {
         return R.ok(cartDiscountService.clearDiscounts());
     }
+
+    @ApiOperation("使用优惠券码绑定优惠券")
+    @PostMapping("/coupon/apply-code")
+    public R<Cart> applyCouponCode(@RequestBody @Valid ApplyCouponDTO dto) {
+        return R.ok(cartPromotionService.applyCouponCode(dto.getCouponCode()));
+    }
+
+    @ApiOperation("使用优惠券ID绑定优惠券")
+    @PostMapping("/coupon/apply/{couponId}")
+    public R<Cart> applyCoupon(
+            @ApiParam("优惠券ID") @PathVariable @NotBlank String couponId) {
+        return R.ok(cartPromotionService.applyCoupon(couponId));
+    }
+
+    @ApiOperation("移除已选择的优惠券")
+    @DeleteMapping("/coupon/remove")
+    public R<Cart> removeCoupon() {
+        return R.ok(cartPromotionService.removeCoupon());
+    }
+
+    @ApiOperation("绑定促销活动")
+    @PostMapping("/promotion/apply/{promotionId}")
+    public R<Cart> applyPromotion(
+            @ApiParam("促销活动ID") @PathVariable @NotBlank String promotionId) {
+        return R.ok(cartPromotionService.applyPromotion(promotionId));
+    }
+
+    @ApiOperation("移除促销活动")
+    @DeleteMapping("/promotion/remove/{promotionId}")
+    public R<Cart> removePromotion(
+            @ApiParam("促销活动ID") @PathVariable @NotBlank String promotionId) {
+        return R.ok(cartPromotionService.removePromotion(promotionId));
+    }
+
+    @ApiOperation("重新计算优惠")
+    @PostMapping("/discount/recalculate")
+    public R<Cart> recalculateDiscount() {
+        return R.ok(cartPromotionService.recalculateDiscount());
+    }
+
+    @ApiOperation("查询用户可用优惠券列表")
+    @GetMapping("/coupon/available")
+    public R<List<CouponVO>> listAvailableCoupons(
+            @ApiParam("购物车总金额（用于判断是否可用）") @RequestParam(required = false) BigDecimal totalAmount) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        if (totalAmount == null) {
+            CartVO cart = cartService.getCartSimple();
+            totalAmount = cart.getTotalAmount();
+        }
+        return R.ok(promotionEngineService.listAvailableCoupons(tenantId, bizType, userId, totalAmount));
+    }
+
+    @ApiOperation("查询可用促销活动列表")
+    @GetMapping("/promotion/available")
+    public R<List<PromotionVO>> listAvailablePromotions(
+            @ApiParam("购物车总金额（用于判断是否可用）") @RequestParam(required = false) BigDecimal totalAmount) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        if (totalAmount == null) {
+            CartVO cart = cartService.getCartSimple();
+            totalAmount = cart.getTotalAmount();
+        }
+        return R.ok(promotionEngineService.listAvailablePromotions(tenantId, bizType, totalAmount));
+    }
+
+    @ApiOperation("获取优惠计算结果")
+    @GetMapping("/discount/result")
+    public R<DiscountResultVO> getDiscountResult() {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+
+        PromotionCalculateDTO calculateDTO = PromotionCalculateDTO.builder()
+                .tenantId(tenantId)
+                .bizType(bizType)
+                .userId(userId)
+                .items(cart.getItems())
+                .totalAmount(cart.getTotalAmount())
+                .selectedCouponId(cart.getSelectedCouponId())
+                .couponCode(cart.getCouponCode())
+                .selectedPromotionIds(cart.getSelectedPromotionIds())
+                .build();
+
+        return R.ok(promotionEngineService.calculateDiscount(calculateDTO));
+    }
+
+    @Resource
+    private com.carhub.storage.CartRedisStorage cartRedisStorage;
 
 }

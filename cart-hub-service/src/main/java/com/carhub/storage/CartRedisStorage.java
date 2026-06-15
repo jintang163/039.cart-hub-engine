@@ -4,7 +4,10 @@ import com.carhub.common.constant.RedisKeyConstant;
 import com.carhub.common.util.JsonUtil;
 import com.carhub.config.CartHubProperties;
 import com.carhub.domain.model.Cart;
+import com.carhub.domain.model.CartDiscount;
 import com.carhub.domain.model.CartItem;
+import com.carhub.domain.model.DiscountDetail;
+import com.carhub.domain.model.GiftItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -184,6 +187,7 @@ public class CartRedisStorage {
         RMap<String, String> cartMap = redissonClient.getMap(cartKey);
         cartMap.delete();
         deleteVersion(cartKey);
+        clearCartMeta(tenantId, bizType, userId);
         return true;
     }
 
@@ -238,6 +242,21 @@ public class CartRedisStorage {
                 .items(items)
                 .version(getVersion(tenantId, bizType, userId))
                 .build();
+
+        CartMeta meta = getCartMeta(tenantId, bizType, userId);
+        if (meta != null) {
+            cart.setSelectedCouponId(meta.getSelectedCouponId());
+            cart.setSelectedPromotionIds(meta.getSelectedPromotionIds());
+            cart.setCouponCode(meta.getCouponCode());
+            cart.setDiscounts(meta.getDiscounts());
+            cart.setDiscountDetails(meta.getDiscountDetails());
+            cart.setGifts(meta.getGifts());
+            cart.setDiscountAmount(meta.getDiscountAmount());
+            cart.setPayAmount(meta.getPayAmount());
+            cart.setDiscountCalculated(meta.getDiscountCalculated());
+            cart.setDiscountCalculateTime(meta.getDiscountCalculateTime());
+        }
+
         cart.recalculate();
         return cart;
     }
@@ -336,6 +355,61 @@ public class CartRedisStorage {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public void saveCartMeta(String tenantId, String bizType, String userId, Cart cart) {
+        String metaKey = RedisKeyConstant.buildCartMetaKey(tenantId, bizType, userId);
+        CartMeta meta = CartMeta.builder()
+                .selectedCouponId(cart.getSelectedCouponId())
+                .selectedPromotionIds(cart.getSelectedPromotionIds())
+                .couponCode(cart.getCouponCode())
+                .discounts(cart.getDiscounts())
+                .discountDetails(cart.getDiscountDetails())
+                .gifts(cart.getGifts())
+                .discountAmount(cart.getDiscountAmount())
+                .payAmount(cart.getPayAmount())
+                .discountCalculated(cart.getDiscountCalculated())
+                .discountCalculateTime(cart.getDiscountCalculateTime())
+                .build();
+        stringRedisTemplate.opsForValue().set(metaKey, JsonUtil.toJson(meta),
+                Duration.ofSeconds(cartHubProperties.getRedis().getCartExpireSeconds()));
+    }
+
+    public CartMeta getCartMeta(String tenantId, String bizType, String userId) {
+        String metaKey = RedisKeyConstant.buildCartMetaKey(tenantId, bizType, userId);
+        String json = stringRedisTemplate.opsForValue().get(metaKey);
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            return JsonUtil.fromJson(json, CartMeta.class);
+        } catch (Exception e) {
+            log.warn("Parse cart meta failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public void clearCartMeta(String tenantId, String bizType, String userId) {
+        String metaKey = RedisKeyConstant.buildCartMetaKey(tenantId, bizType, userId);
+        stringRedisTemplate.delete(metaKey);
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CartMeta implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String selectedCouponId;
+        private List<String> selectedPromotionIds;
+        private String couponCode;
+        private List<CartDiscount> discounts;
+        private List<DiscountDetail> discountDetails;
+        private List<GiftItem> gifts;
+        private BigDecimal discountAmount;
+        private BigDecimal payAmount;
+        private Boolean discountCalculated;
+        private Long discountCalculateTime;
     }
 
 }

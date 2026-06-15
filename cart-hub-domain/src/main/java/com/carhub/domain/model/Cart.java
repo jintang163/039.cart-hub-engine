@@ -51,6 +51,20 @@ public class Cart implements Serializable {
 
     private Map<String, Object> extInfo;
 
+    private String selectedCouponId;
+
+    private List<String> selectedPromotionIds;
+
+    private String couponCode;
+
+    private List<DiscountDetail> discountDetails;
+
+    private List<GiftItem> gifts;
+
+    private Boolean discountCalculated;
+
+    private Long discountCalculateTime;
+
     public void recalculate() {
         if (this.items == null) {
             this.items = new ArrayList<>();

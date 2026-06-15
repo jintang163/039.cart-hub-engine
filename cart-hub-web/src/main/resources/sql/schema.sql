@@ -274,6 +274,121 @@ CREATE TABLE `t_cart_statistics` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='购物车统计表';
 
 -- ============================================================
+-- 10. 优惠券模板表
+-- ============================================================
+DROP TABLE IF EXISTS `t_coupon_template`;
+CREATE TABLE `t_coupon_template` (
+    `id`                    BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`             VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`              VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `coupon_id`             VARCHAR(128) NOT NULL COMMENT '优惠券ID',
+    `coupon_name`           VARCHAR(256) NOT NULL COMMENT '优惠券名称',
+    `coupon_type`           VARCHAR(32)  NOT NULL COMMENT '优惠券类型:fixed-满减,percent-折扣',
+    `promotion_type`        VARCHAR(32)  DEFAULT NULL COMMENT '促销类型:full_reduction-满减,discount-折扣,gift-赠品',
+    `threshold_amount`      DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '使用门槛金额',
+    `discount_amount`       DECIMAL(18,2)DEFAULT 0.00 COMMENT '优惠金额(满减用)',
+    `discount_percent`      INT          DEFAULT NULL COMMENT '折扣百分比(1-100,折扣用)',
+    `max_discount_amount`   DECIMAL(18,2)DEFAULT NULL COMMENT '最大优惠金额',
+    `scope`                 VARCHAR(32)  NOT NULL DEFAULT 'all' COMMENT '适用范围:all-全部,category-分类,shop-店铺,sku-指定商品',
+    `apply_category_ids`    VARCHAR(1024)DEFAULT NULL COMMENT '适用分类ID列表(逗号分隔)',
+    `apply_shop_ids`        VARCHAR(1024)DEFAULT NULL COMMENT '适用店铺ID列表(逗号分隔)',
+    `apply_sku_ids`         TEXT         DEFAULT NULL COMMENT '适用SKU ID列表(逗号分隔)',
+    `exclude_sku_ids`       TEXT         DEFAULT NULL COMMENT '排除SKU ID列表(逗号分隔)',
+    `start_time`            DATETIME     NOT NULL COMMENT '生效开始时间',
+    `end_time`              DATETIME     NOT NULL COMMENT '生效结束时间',
+    `total_count`           INT          NOT NULL DEFAULT 0 COMMENT '发放总数量',
+    `used_count`            INT          NOT NULL DEFAULT 0 COMMENT '已使用数量',
+    `per_user_limit`        INT          NOT NULL DEFAULT 1 COMMENT '每人限领数量',
+    `stackable`             TINYINT      NOT NULL DEFAULT 0 COMMENT '是否可叠加:0-否,1-是',
+    `priority`              INT          NOT NULL DEFAULT 0 COMMENT '优先级(数字越小优先级越高)',
+    `coupon_desc`           VARCHAR(512) DEFAULT NULL COMMENT '优惠券描述',
+    `gift_info`             JSON         DEFAULT NULL COMMENT '赠品信息(JSON数组)',
+    `rule_config`           JSON         DEFAULT NULL COMMENT '扩展规则配置',
+    `status`                TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-禁用,1-启用',
+    `ext_info`              JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`               TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_coupon_id` (`tenant_id`, `biz_type`, `coupon_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_time` (`start_time`, `end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='优惠券模板表';
+
+-- ============================================================
+-- 11. 促销活动表
+-- ============================================================
+DROP TABLE IF EXISTS `t_promotion_activity`;
+CREATE TABLE `t_promotion_activity` (
+    `id`                    BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`             VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`              VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `promotion_id`          VARCHAR(128) NOT NULL COMMENT '促销活动ID',
+    `promotion_name`        VARCHAR(256) NOT NULL COMMENT '促销活动名称',
+    `promotion_type`        VARCHAR(32)  NOT NULL COMMENT '促销类型:full_reduction-满减,discount-折扣,gift-赠品',
+    `promotion_desc`        VARCHAR(512) DEFAULT NULL COMMENT '促销活动描述',
+    `start_time`            DATETIME     NOT NULL COMMENT '活动开始时间',
+    `end_time`              DATETIME     NOT NULL COMMENT '活动结束时间',
+    `threshold_amount`      DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '门槛金额',
+    `discount_amount`       DECIMAL(18,2)DEFAULT 0.00 COMMENT '优惠金额(满减用)',
+    `discount_percent`      INT          DEFAULT NULL COMMENT '折扣百分比(1-100,折扣用)',
+    `max_discount_amount`   DECIMAL(18,2)DEFAULT NULL COMMENT '最大优惠金额',
+    `scope`                 VARCHAR(32)  NOT NULL DEFAULT 'all' COMMENT '适用范围:all-全部,category-分类,shop-店铺,sku-指定商品',
+    `apply_category_ids`    VARCHAR(1024)DEFAULT NULL COMMENT '适用分类ID列表(逗号分隔)',
+    `apply_shop_ids`        VARCHAR(1024)DEFAULT NULL COMMENT '适用店铺ID列表(逗号分隔)',
+    `apply_sku_ids`         TEXT         DEFAULT NULL COMMENT '适用SKU ID列表(逗号分隔)',
+    `exclude_sku_ids`       TEXT         DEFAULT NULL COMMENT '排除SKU ID列表(逗号分隔)',
+    `gift_info`             JSON         DEFAULT NULL COMMENT '赠品信息(JSON数组)',
+    `rule_config`           JSON         DEFAULT NULL COMMENT '扩展规则配置',
+    `stackable`             TINYINT      NOT NULL DEFAULT 0 COMMENT '是否可叠加:0-否,1-是',
+    `priority`              INT          NOT NULL DEFAULT 0 COMMENT '优先级(数字越小优先级越高)',
+    `status`                TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-禁用,1-启用',
+    `ext_info`              JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`               TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_promotion_id` (`tenant_id`, `biz_type`, `promotion_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_time` (`start_time`, `end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='促销活动表';
+
+-- ============================================================
+-- 12. 用户优惠券表
+-- ============================================================
+DROP TABLE IF EXISTS `t_user_coupon`;
+CREATE TABLE `t_user_coupon` (
+    `id`                    BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`             VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`              VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`               VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `coupon_id`             VARCHAR(128) NOT NULL COMMENT '优惠券模板ID',
+    `coupon_code`           VARCHAR(64)  DEFAULT NULL COMMENT '优惠券码',
+    `coupon_name`           VARCHAR(256) NOT NULL COMMENT '优惠券名称(快照)',
+    `coupon_type`           VARCHAR(32)  NOT NULL COMMENT '优惠券类型:fixed-满减,percent-折扣',
+    `promotion_type`        VARCHAR(32)  DEFAULT NULL COMMENT '促销类型',
+    `threshold_amount`      DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '使用门槛金额',
+    `discount_amount`       DECIMAL(18,2)DEFAULT 0.00 COMMENT '优惠金额',
+    `discount_percent`      INT          DEFAULT NULL COMMENT '折扣百分比',
+    `max_discount_amount`   DECIMAL(18,2)DEFAULT NULL COMMENT '最大优惠金额',
+    `receive_time`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '领取时间',
+    `start_time`            DATETIME     NOT NULL COMMENT '生效开始时间',
+    `end_time`              DATETIME     NOT NULL COMMENT '生效结束时间',
+    `used_time`             DATETIME     DEFAULT NULL COMMENT '使用时间',
+    `order_no`              VARCHAR(128) DEFAULT NULL COMMENT '关联订单号',
+    `status`                TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-已使用,1-未使用,2-已过期',
+    `ext_info`              JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`               TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_coupon_code` (`tenant_id`, `biz_type`, `coupon_code`),
+    KEY `idx_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_coupon_id` (`coupon_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户优惠券表';
+
+-- ============================================================
 -- 初始化数据
 -- ============================================================
 
@@ -288,3 +403,33 @@ VALUES
     ('default', 'ecommerce', '电商业务', 1, 200, 999, '电商购物车业务配置'),
     ('default', 'food',      '餐饮业务', 1, 100, 99,  '餐饮购物车业务配置'),
     ('default', 'course',    '课程业务', 1, 50,  10,  '课程购物车业务配置');
+
+-- 优惠券模板示例
+INSERT INTO `t_coupon_template` (`tenant_id`, `biz_type`, `coupon_id`, `coupon_name`,
+    `coupon_type`, `promotion_type`, `threshold_amount`, `discount_amount`,
+    `start_time`, `end_time`, `total_count`, `per_user_limit`, `coupon_desc`, `status`)
+VALUES
+    ('default', 'ecommerce', 'COUPON001', '满100减10优惠券', 'fixed', 'full_reduction', 100.00, 10.00,
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1000, 1, '全场满100元减10元', 1),
+    ('default', 'ecommerce', 'COUPON002', '9折优惠券', 'percent', 'discount', 50.00, NULL,
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 500, 1, '全场满50元享9折，最高减50元', 1);
+
+-- 促销活动示例
+INSERT INTO `t_promotion_activity` (`tenant_id`, `biz_type`, `promotion_id`, `promotion_name`,
+    `promotion_type`, `promotion_desc`, `start_time`, `end_time`, `threshold_amount`,
+    `discount_amount`, `priority`, `status`)
+VALUES
+    ('default', 'ecommerce', 'PROMO001', '满200减30', 'full_reduction', '全场满200减30',
+     NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 200.00, 30.00, 1, 1),
+    ('default', 'ecommerce', 'PROMO002', '满500减100', 'full_reduction', '全场满500减100',
+     NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 500.00, 100.00, 2, 1);
+
+-- 用户优惠券示例
+INSERT INTO `t_user_coupon` (`tenant_id`, `biz_type`, `user_id`, `coupon_id`, `coupon_code`,
+    `coupon_name`, `coupon_type`, `promotion_type`, `threshold_amount`, `discount_amount`,
+    `start_time`, `end_time`, `status`)
+VALUES
+    ('default', 'ecommerce', 'user001', 'COUPON001', 'ABC123456', '满100减10优惠券', 'fixed', 'full_reduction', 100.00, 10.00,
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1),
+    ('default', 'ecommerce', 'user001', 'COUPON002', 'DEF789012', '9折优惠券', 'percent', 'discount', 50.00, NULL,
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);

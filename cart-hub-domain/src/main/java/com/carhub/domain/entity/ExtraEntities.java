@@ -168,3 +168,114 @@ class TenantEntity implements Serializable {
     @TableLogic
     private Integer deleted;
 }
+
+@Data
+@TableName("t_coupon_template")
+public class CouponTemplateEntity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String tenantId;
+    private String bizType;
+    private String couponId;
+    private String couponName;
+    private String couponType;
+    private String promotionType;
+    private BigDecimal thresholdAmount;
+    private BigDecimal discountAmount;
+    private Integer discountPercent;
+    private BigDecimal maxDiscountAmount;
+    private String scope;
+    private String applyCategoryIds;
+    private String applyShopIds;
+    private String applySkuIds;
+    private String excludeSkuIds;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private Integer totalCount;
+    private Integer usedCount;
+    private Integer perUserLimit;
+    private Boolean stackable;
+    private Integer priority;
+    private String couponDesc;
+    private String giftInfo;
+    private String ruleConfig;
+    private Integer status;
+    private String extInfo;
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+    @TableLogic
+    private Integer deleted;
+}
+
+@Data
+@TableName("t_promotion_activity")
+class PromotionActivityEntity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String tenantId;
+    private String bizType;
+    private String promotionId;
+    private String promotionName;
+    private String promotionType;
+    private String promotionDesc;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private BigDecimal thresholdAmount;
+    private BigDecimal discountAmount;
+    private Integer discountPercent;
+    private BigDecimal maxDiscountAmount;
+    private String scope;
+    private String applyCategoryIds;
+    private String applyShopIds;
+    private String applySkuIds;
+    private String excludeSkuIds;
+    private String giftInfo;
+    private String ruleConfig;
+    private Boolean stackable;
+    private Integer priority;
+    private Integer status;
+    private String extInfo;
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+    @TableLogic
+    private Integer deleted;
+}
+
+@Data
+@TableName("t_user_coupon")
+class UserCouponEntity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String tenantId;
+    private String bizType;
+    private String userId;
+    private String couponId;
+    private String couponCode;
+    private String couponName;
+    private String couponType;
+    private String promotionType;
+    private BigDecimal thresholdAmount;
+    private BigDecimal discountAmount;
+    private Integer discountPercent;
+    private BigDecimal maxDiscountAmount;
+    private LocalDateTime receiveTime;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private LocalDateTime usedTime;
+    private String orderNo;
+    private Integer status;
+    private String extInfo;
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+    @TableLogic
+    private Integer deleted;
+}

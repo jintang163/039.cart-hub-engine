@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -15,7 +14,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CartDiscount implements Serializable {
+public class DiscountDetail implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -29,23 +28,15 @@ public class CartDiscount implements Serializable {
 
     private BigDecimal discountAmount;
 
-    private Map<String, Object> discountRule;
-
-    private String scope;
-
-    private List<String> applySkus;
-
-    private Boolean enable;
-
-    private String errorMessage;
-
-    private Map<String, Object> extInfo;
-
     private String promotionType;
+
+    private String promotionName;
 
     private String promotionId;
 
-    private String promotionName;
+    private List<String> applySkus;
+
+    private Map<String, BigDecimal> skuDiscountAmount;
 
     private BigDecimal thresholdAmount;
 
@@ -53,20 +44,10 @@ public class CartDiscount implements Serializable {
 
     private Integer discountPercent;
 
-    private BigDecimal maxDiscountAmount;
+    private Integer maxDiscountAmount;
 
     private List<GiftItem> gifts;
 
-    private List<DiscountDetail> details;
-
-    private Map<String, BigDecimal> skuDiscountAmount;
-
-    private LocalDateTime startTime;
-
-    private LocalDateTime endTime;
-
-    private Boolean stackable;
-
-    private Integer priority;
+    private Map<String, Object> extInfo;
 
 }

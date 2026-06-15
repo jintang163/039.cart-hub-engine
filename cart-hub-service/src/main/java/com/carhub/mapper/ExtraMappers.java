@@ -27,3 +27,15 @@ interface CartStatisticsMapper extends BaseMapper<com.carhub.domain.entity.CartS
 @Mapper
 interface TenantMapper extends BaseMapper<com.carhub.domain.entity.TenantEntity> {
 }
+
+@Mapper
+public interface CouponTemplateMapper extends BaseMapper<com.carhub.domain.entity.CouponTemplateEntity> {
+}
+
+@Mapper
+interface PromotionActivityMapper extends BaseMapper<com.carhub.domain.entity.PromotionActivityEntity> {
+}
+
+@Mapper
+interface UserCouponMapper extends BaseMapper<com.carhub.domain.entity.UserCouponEntity> {
+}

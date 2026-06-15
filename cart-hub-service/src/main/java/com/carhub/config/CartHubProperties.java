@@ -5,6 +5,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
 
 @Data
 @Configuration
@@ -16,6 +18,7 @@ public class CartHubProperties {
     private Minio minio = new Minio();
     private Sync sync = new Sync();
     private Limit limit = new Limit();
+    private Promotion promotion = new Promotion();
 
     @Data
     public static class Redis {
@@ -53,12 +56,30 @@ public class CartHubProperties {
         private Integer maxItemQuantity = 999;
     }
 
+    @Data
+    public static class Promotion {
+        private Boolean enable = true;
+        private String calculateUrl;
+        private Integer timeoutMs = 5000;
+        private String couponListUrl;
+        private String promotionListUrl;
+        private Integer cacheSeconds = 60;
+    }
+
     @Bean
     public MinioClient minioClient() {
         return MinioClient.builder()
                 .endpoint(minio.getEndpoint())
                 .credentials(minio.getAccessKey(), minio.getSecretKey())
                 .build();
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(promotion.getTimeoutMs());
+        factory.setReadTimeout(promotion.getTimeoutMs());
+        return new RestTemplate(factory);
     }
 
 }

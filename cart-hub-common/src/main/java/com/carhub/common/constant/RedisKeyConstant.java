@@ -22,6 +22,8 @@ public class RedisKeyConstant {
 
     public static final String CART_RECALC_LOCK = CART_PREFIX + "recalc:lock:{%s}";
 
+    public static final String CART_META_KEY = CART_PREFIX + "meta:{%s}:{%s}:{%s}";
+
     public static String buildCartKey(String tenantId, String bizType, String userId) {
         return String.format(CART_HASH_KEY, tenantId, bizType, userId);
     }
@@ -48,6 +50,10 @@ public class RedisKeyConstant {
 
     public static String buildValidateCacheKey(String bizType, String skuId) {
         return String.format(CART_VALIDATE_CACHE, bizType, skuId);
+    }
+
+    public static String buildCartMetaKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_META_KEY, tenantId, bizType, userId);
     }
 
 }
