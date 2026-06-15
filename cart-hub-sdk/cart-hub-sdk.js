@@ -224,51 +224,73 @@
         }
 
         async addItem(item) {
-            return this._request('/api/cart/item', {
+            const result = await this._request('/api/cart/item', {
                 method: 'POST',
                 body: item
             });
+            this._emit('itemAdded', { item, result });
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async updateItem(item) {
-            return this._request('/api/cart/item', {
+            const result = await this._request('/api/cart/item', {
                 method: 'PUT',
                 body: item
             });
+            this._emit('itemUpdated', { item, result });
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async incrementQuantity(skuId, delta = 1) {
             const qs = new URLSearchParams({ skuId, delta: String(delta) });
-            return this._request('/api/cart/item/quantity?' + qs.toString(), {
+            const result = await this._request('/api/cart/item/quantity?' + qs.toString(), {
                 method: 'PATCH'
             });
+            this._emit('quantityChanged', { skuId, delta, result });
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async removeItem(skuId) {
             const qs = new URLSearchParams({ skuId });
-            return this._request('/api/cart/item?' + qs.toString(), {
+            const result = await this._request('/api/cart/item?' + qs.toString(), {
                 method: 'DELETE'
             });
+            this._emit('itemRemoved', { skuId, result });
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async batchRemove(skuIds) {
-            return this._request('/api/cart/items', {
+            const result = await this._request('/api/cart/items', {
                 method: 'DELETE',
                 body: { skuIds }
             });
+            this._emit('itemsBatchRemoved', { skuIds, result });
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async clearCart() {
-            return this._request('/api/cart/clear', { method: 'DELETE' });
+            const result = await this._request('/api/cart/clear', { method: 'DELETE' });
+            this._emit('cartCleared', result);
+            this._emit('cartChanged', result);
+            return result;
         }
 
         async getCart(validate = true) {
             const qs = new URLSearchParams({ validate: String(validate) });
-            return this._request('/api/cart?' + qs.toString());
+            const result = await this._request('/api/cart?' + qs.toString());
+            this._emit('cartLoaded', result);
+            return result;
         }
 
         async getCartSimple() {
-            return this._request('/api/cart/simple');
+            const result = await this._request('/api/cart/simple');
+            this._emit('cartLoaded', result);
+            return result;
         }
 
         async getItemCount() {

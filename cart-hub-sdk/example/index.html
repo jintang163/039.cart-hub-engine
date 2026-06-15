@@ -226,6 +226,18 @@
             sdk.on('userChanged', e => log('用户变更: ' + JSON.stringify(e)));
             sdk.on('localChanged', () => log('本地购物车已更新', 'localCartResult'));
 
+            sdk.on('cartLoaded', cartData => {
+                loadRecommendations(cartData);
+            });
+
+            sdk.on('cartChanged', cartData => {
+                if (cartData && cartData.items !== undefined) {
+                    loadRecommendations(cartData);
+                } else {
+                    refreshRecommendations();
+                }
+            });
+
             log('SDK 初始化成功! 版本: ' + CartHubSDK.VERSION);
         }
 
