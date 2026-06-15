@@ -279,3 +279,62 @@ class UserCouponEntity implements Serializable {
     @TableLogic
     private Integer deleted;
 }
+
+@Data
+@TableName("t_sku_association")
+public class SkuAssociationEntity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String tenantId;
+    private String bizType;
+    private String sourceSkuId;
+    private String targetSkuId;
+    private Integer coOccurrenceCount;
+    private Double support;
+    private Double confidence;
+    private Double lift;
+    private Integer totalTransactions;
+    private Integer sourceCount;
+    private Integer targetCount;
+    private String algorithm;
+    private LocalDateTime statStartTime;
+    private LocalDateTime statEndTime;
+    private Integer status;
+    private String extInfo;
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+    @TableLogic
+    private Integer deleted;
+}
+
+@Data
+@TableName("t_user_cart_profile")
+class UserCartProfileEntity implements Serializable {
+    private static final long serialVersionUID = 1L;
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    private String tenantId;
+    private String bizType;
+    private String userId;
+    private String favoriteCategoryIds;
+    private String favoriteShopIds;
+    private String frequentSkus;
+    private String recentSkus;
+    private BigDecimal avgCartAmount;
+    private Integer avgCartSize;
+    private Integer totalAddCount;
+    private Integer totalPurchaseCount;
+    private LocalDateTime lastActiveTime;
+    private String profileSnapshot;
+    private Integer status;
+    private String extInfo;
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+    @TableLogic
+    private Integer deleted;
+}

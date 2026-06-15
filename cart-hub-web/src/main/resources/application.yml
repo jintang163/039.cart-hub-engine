@@ -102,6 +102,17 @@ cart-hub:
     coupon-list-url: http://localhost:8081/promotion/coupon/list
     promotion-list-url: http://localhost:8081/promotion/list
     cache-seconds: 60
+  recommend:
+    enable: true
+    recommend-url: http://localhost:8081/recommend/query
+    timeout-ms: 3000
+    top-n: 10
+    min-confidence: 0.1
+    min-support: 0.01
+    cache-seconds: 300
+    analyze-interval-hours: 6
+    analyze-recent-days: 30
+    max-history-records: 50000
 
 knife4j:
   enable: true

@@ -427,6 +427,17 @@
             return this._request('/api/cart/discount/result');
         }
 
+        async getRecommendations(options = {}) {
+            const qs = new URLSearchParams();
+            if (options.currentSkus && options.currentSkus.length > 0) {
+                options.currentSkus.forEach(sku => qs.append('currentSkus', sku));
+            }
+            if (options.topN) {
+                qs.set('topN', String(options.topN));
+            }
+            return this._request('/api/cart/recommend?' + qs.toString());
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);

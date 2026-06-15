@@ -39,6 +39,7 @@ public class CartService {
     private final CartHubProperties cartHubProperties;
     private final RedissonClient redissonClient;
     private final CartPromotionService cartPromotionService;
+    private final CartRecommendService cartRecommendService;
 
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -83,6 +84,7 @@ public class CartService {
 
         asyncSyncDb(tenantId, bizType, userId);
         recalculateDiscountIfNeeded(tenantId, bizType, userId);
+        cartRecommendService.recordAddForRecommend(tenantId, bizType, userId, dto.getSkuId());
         log.info("addItem success: tenantId={}, bizType={}, userId={}, skuId={}, qty={}",
                 tenantId, bizType, userId, dto.getSkuId(), dto.getQuantity());
         return true;

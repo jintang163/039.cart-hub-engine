@@ -53,6 +53,7 @@ export declare class CartHubSDK {
     listAvailableCoupons(totalAmount?: number): Promise<CouponVO[]>;
     listAvailablePromotions(totalAmount?: number): Promise<PromotionVO[]>;
     getDiscountResult(): Promise<DiscountResultVO>;
+    getRecommendations(options?: RecommendOptions): Promise<RecommendItemVO[]>;
 
     on(event: string, callback: (data: any) => void): () => void;
     off(event: string, callback: (data: any) => void): void;
@@ -357,6 +358,29 @@ export interface CartVO {
     gifts?: GiftItemVO[];
     discountCalculated?: boolean;
     discountCalculateTime?: number;
+}
+
+export interface RecommendOptions {
+    currentSkus?: string[];
+    topN?: number;
+}
+
+export interface RecommendItemVO {
+    skuId: string;
+    spuId?: string;
+    itemName?: string;
+    itemImage?: string;
+    itemSpec?: Record<string, string>;
+    unitPrice?: string;
+    originalPrice?: string;
+    score?: number;
+    recommendReason?: string;
+    coOccurrenceCount?: number;
+    support?: number;
+    confidence?: number;
+    lift?: number;
+    sourceSkus?: string[];
+    extInfo?: Record<string, any>;
 }
 
 export default CartHubSDK;

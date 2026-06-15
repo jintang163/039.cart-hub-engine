@@ -7,6 +7,7 @@ import com.carhub.domain.vo.CartVO;
 import com.carhub.domain.vo.CouponVO;
 import com.carhub.domain.vo.DiscountResultVO;
 import com.carhub.domain.vo.PromotionVO;
+import com.carhub.domain.vo.RecommendItemVO;
 import com.carhub.service.*;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -34,6 +35,7 @@ public class CartController {
     private final CartDiscountService cartDiscountService;
     private final CartPromotionService cartPromotionService;
     private final PromotionEngineService promotionEngineService;
+    private final CartRecommendService cartRecommendService;
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
@@ -293,6 +295,24 @@ public class CartController {
                 .build();
 
         return R.ok(promotionEngineService.calculateDiscount(calculateDTO));
+    }
+
+    @ApiOperation("获取购物车智能推荐")
+    @GetMapping("/recommend")
+    public R<List<RecommendItemVO>> getRecommendations(
+            @ApiParam("当前购物车SKU列表") @RequestParam(required = false) List<String> currentSkus,
+            @ApiParam("推荐数量") @RequestParam(required = false, defaultValue = "10") Integer topN) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartRecommendService.getRecommendations(tenantId, bizType, userId, currentSkus, topN));
+    }
+
+    @ApiOperation("手动触发关联分析（管理后台用）")
+    @PostMapping("/recommend/analyze")
+    public R<String> triggerAnalyze() {
+        cartRecommendService.analyzeAllAssociations();
+        return R.ok("关联分析已触发");
     }
 
     @Resource

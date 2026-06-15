@@ -24,6 +24,12 @@ public class RedisKeyConstant {
 
     public static final String CART_META_KEY = CART_PREFIX + "meta:{%s}:{%s}:{%s}";
 
+    public static final String CART_RECOMMEND_KEY = CART_PREFIX + "recommend:{%s}:{%s}:{%s}";
+
+    public static final String CART_RECOMMEND_LOCK = CART_PREFIX + "recommend:lock:{%s}:{%s}";
+
+    public static final String SKU_CO_OCCURRENCE_KEY = CART_PREFIX + "cooccurrence:{%s}:{%s}";
+
     public static String buildCartKey(String tenantId, String bizType, String userId) {
         return String.format(CART_HASH_KEY, tenantId, bizType, userId);
     }
@@ -54,6 +60,18 @@ public class RedisKeyConstant {
 
     public static String buildCartMetaKey(String tenantId, String bizType, String userId) {
         return String.format(CART_META_KEY, tenantId, bizType, userId);
+    }
+
+    public static String buildRecommendKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_RECOMMEND_KEY, tenantId, bizType, userId);
+    }
+
+    public static String buildRecommendLockKey(String tenantId, String bizType) {
+        return String.format(CART_RECOMMEND_LOCK, tenantId, bizType);
+    }
+
+    public static String buildSkuCoOccurrenceKey(String tenantId, String bizType) {
+        return String.format(SKU_CO_OCCURRENCE_KEY, tenantId, bizType);
     }
 
 }

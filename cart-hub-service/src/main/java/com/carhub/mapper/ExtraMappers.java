@@ -39,3 +39,11 @@ interface PromotionActivityMapper extends BaseMapper<com.carhub.domain.entity.Pr
 @Mapper
 interface UserCouponMapper extends BaseMapper<com.carhub.domain.entity.UserCouponEntity> {
 }
+
+@Mapper
+public interface SkuAssociationMapper extends BaseMapper<com.carhub.domain.entity.SkuAssociationEntity> {
+}
+
+@Mapper
+interface UserCartProfileMapper extends BaseMapper<com.carhub.domain.entity.UserCartProfileEntity> {
+}

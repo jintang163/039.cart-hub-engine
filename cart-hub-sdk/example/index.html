@@ -63,6 +63,30 @@
         .summary-total { border-top: 1px solid rgba(255,255,255,0.3); margin-top: 10px; padding-top: 12px; }
         .summary-total .summary-value { font-size: 24px; color: #ffd700; }
         .detail-item { background: rgba(255,255,255,0.15); border-radius: 4px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
+
+        .recommend-section { margin-top: 20px; }
+        .recommend-title { font-size: 16px; font-weight: 600; color: #303133; margin-bottom: 12px;
+                           display: flex; align-items: center; gap: 8px; }
+        .recommend-title::before { content: '✨'; }
+        .recommend-scroll { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; }
+        .recommend-scroll::-webkit-scrollbar { height: 6px; }
+        .recommend-scroll::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 3px; }
+        .recommend-card { min-width: 160px; max-width: 180px; border: 1px solid #ebeef5; border-radius: 8px;
+                          padding: 12px; text-align: center; cursor: pointer; transition: all 0.2s;
+                          background: #fff; flex-shrink: 0; }
+        .recommend-card:hover { border-color: #409EFF; box-shadow: 0 2px 12px rgba(64,158,255,0.15);
+                                transform: translateY(-2px); }
+        .recommend-img { width: 100%; height: 80px; background: linear-gradient(135deg, #f093fb, #f5576c);
+                         border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center;
+                         justify-content: center; color: #fff; font-size: 12px; font-weight: 600; }
+        .recommend-name { font-size: 13px; color: #303133; font-weight: 500; margin-bottom: 4px;
+                          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recommend-price { color: #F56C6C; font-size: 16px; font-weight: bold; }
+        .recommend-reason { font-size: 11px; color: #909399; margin-top: 4px; }
+        .recommend-score { font-size: 11px; color: #E6A23C; margin-top: 2px; }
+        .recommend-badge { display: inline-block; background: #F56C6C; color: #fff; font-size: 10px;
+                           padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+        .recommend-empty { text-align: center; padding: 30px; color: #909399; }
     </style>
 </head>
 <body>
@@ -161,6 +185,11 @@
         <div class="card" id="promotionListContainer" style="display:none;">
             <h2>8. 可用促销活动列表</h2>
             <div class="grid" id="promotionList"></div>
+        </div>
+
+        <div class="card" id="recommendContainer" style="display:none;">
+            <h2>9. 猜你喜欢 · 常一起购买</h2>
+            <div class="recommend-scroll" id="recommendList"></div>
         </div>
     </div>
 
@@ -542,8 +571,76 @@
                 const cart = await sdk.getCartSimple();
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
                 updateDiscountSummary(cart);
+                loadRecommendations(cart);
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         };
+
+        async function loadRecommendations(cart) {
+            if (!sdk) return;
+            try {
+                const currentSkus = cart && cart.items
+                    ? cart.items.map(i => i.skuId).filter(Boolean)
+                    : [];
+                const recommendations = await sdk.getRecommendations({
+                    currentSkus: currentSkus,
+                    topN: 10
+                });
+                renderRecommendations(recommendations);
+            } catch (e) {
+                console.log('Load recommendations failed:', e.message);
+            }
+        }
+
+        function renderRecommendations(recommendations) {
+            const container = document.getElementById('recommendContainer');
+            const list = document.getElementById('recommendList');
+
+            if (!recommendations || recommendations.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            const productMap = {};
+            products.forEach(p => { productMap[p.skuId] = p; });
+
+            list.innerHTML = recommendations.map(r => {
+                const p = productMap[r.skuId];
+                const name = r.itemName || (p ? p.name : r.skuId);
+                const price = r.unitPrice || (p ? p.price.toFixed(2) : '--');
+                const image = r.itemImage || (p ? p.img : '🎁 推荐');
+                const reason = r.recommendReason || '猜你喜欢';
+                const scoreDisplay = r.score ? (r.score * 100).toFixed(0) + '%' : '';
+                const coCount = r.coOccurrenceCount || 0;
+
+                return `
+                    <div class="recommend-card" onclick="addRecommendToCart('${r.skuId}', ${p ? p.price : 0}, '${name.replace(/'/g, "\\'")}')">
+                        <div class="recommend-img">${image}</div>
+                        <div class="recommend-name" title="${name}">${name}</div>
+                        <div class="recommend-price">¥${price}</div>
+                        <div class="recommend-reason">${reason}${coCount > 5 ? '<span class="recommend-badge">' + coCount + '人同购</span>' : ''}</div>
+                        ${scoreDisplay ? '<div class="recommend-score">匹配度 ' + scoreDisplay + '</div>' : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function addRecommendToCart(skuId, price, name) {
+            if (!sdk) return alert('请先初始化SDK');
+            if (!confirm('将 ' + name + ' 加入购物车？')) return;
+            try {
+                await sdk.addItem({ skuId, unitPrice: price || 99.00, quantity: 1, itemName: name });
+                log('推荐商品已加入购物车: ' + name, 'cartResult');
+            } catch (e) { log('加入失败: ' + e.message, 'cartResult'); }
+        }
+
+        async function refreshRecommendations() {
+            if (!sdk) return;
+            try {
+                const cart = await sdk.getCartSimple();
+                loadRecommendations(cart);
+            } catch (e) { log('刷新推荐失败: ' + e.message); }
+        }
 
         renderProducts();
         initSDK();

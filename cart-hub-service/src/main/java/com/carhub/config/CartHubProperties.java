@@ -19,6 +19,7 @@ public class CartHubProperties {
     private Sync sync = new Sync();
     private Limit limit = new Limit();
     private Promotion promotion = new Promotion();
+    private Recommend recommend = new Recommend();
 
     @Data
     public static class Redis {
@@ -64,6 +65,20 @@ public class CartHubProperties {
         private String couponListUrl;
         private String promotionListUrl;
         private Integer cacheSeconds = 60;
+    }
+
+    @Data
+    public static class Recommend {
+        private Boolean enable = true;
+        private String recommendUrl;
+        private Integer timeoutMs = 3000;
+        private Integer topN = 10;
+        private Double minConfidence = 0.1;
+        private Double minSupport = 0.01;
+        private Integer cacheSeconds = 300;
+        private Integer analyzeIntervalHours = 6;
+        private Integer analyzeRecentDays = 30;
+        private Integer maxHistoryRecords = 50000;
     }
 
     @Bean

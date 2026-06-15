@@ -433,3 +433,87 @@ VALUES
      NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1),
     ('default', 'ecommerce', 'user001', 'COUPON002', 'DEF789012', '9折优惠券', 'percent', 'discount', 50.00, NULL,
      NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
+
+-- ============================================================
+-- 13. SKU关联分析表（协同过滤）
+-- ============================================================
+DROP TABLE IF EXISTS `t_sku_association`;
+CREATE TABLE `t_sku_association` (
+    `id`                   BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`            VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`             VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `source_sku_id`        VARCHAR(128) NOT NULL COMMENT '源SKU ID',
+    `target_sku_id`        VARCHAR(128) NOT NULL COMMENT '目标SKU ID',
+    `co_occurrence_count`  INT          NOT NULL DEFAULT 0 COMMENT '共现次数',
+    `support`              DOUBLE       NOT NULL DEFAULT 0.0 COMMENT '支持度',
+    `confidence`           DOUBLE       NOT NULL DEFAULT 0.0 COMMENT '置信度',
+    `lift`                 DOUBLE       NOT NULL DEFAULT 0.0 COMMENT '提升度',
+    `total_transactions`   INT          NOT NULL DEFAULT 0 COMMENT '总事务数',
+    `source_count`         INT          NOT NULL DEFAULT 0 COMMENT '源SKU出现次数',
+    `target_count`         INT          NOT NULL DEFAULT 0 COMMENT '目标SKU出现次数',
+    `algorithm`            VARCHAR(32)  NOT NULL DEFAULT 'cf' COMMENT '算法:cf-协同过滤,apriori-关联规则',
+    `stat_start_time`      DATETIME     DEFAULT NULL COMMENT '统计开始时间',
+    `stat_end_time`        DATETIME     DEFAULT NULL COMMENT '统计结束时间',
+    `status`               TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-禁用,1-启用',
+    `ext_info`             JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`              TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_sku_pair` (`tenant_id`, `biz_type`, `source_sku_id`, `target_sku_id`),
+    KEY `idx_source` (`source_sku_id`),
+    KEY `idx_target` (`target_sku_id`),
+    KEY `idx_confidence` (`confidence`),
+    KEY `idx_lift` (`lift`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SKU关联分析表';
+
+-- ============================================================
+-- 14. 用户购物车画像表
+-- ============================================================
+DROP TABLE IF EXISTS `t_user_cart_profile`;
+CREATE TABLE `t_user_cart_profile` (
+    `id`                   BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`            VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`             VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`              VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `favorite_category_ids`VARCHAR(1024)DEFAULT NULL COMMENT '偏好分类ID列表',
+    `favorite_shop_ids`    VARCHAR(1024)DEFAULT NULL COMMENT '偏好店铺ID列表',
+    `frequent_skus`        TEXT         DEFAULT NULL COMMENT '常购SKU列表(JSON)',
+    `recent_skus`          TEXT         DEFAULT NULL COMMENT '最近加购SKU列表(JSON)',
+    `avg_cart_amount`      DECIMAL(18,2)DEFAULT NULL COMMENT '平均购物车金额',
+    `avg_cart_size`        INT          DEFAULT NULL COMMENT '平均购物车大小',
+    `total_add_count`      INT          NOT NULL DEFAULT 0 COMMENT '总加购次数',
+    `total_purchase_count` INT          NOT NULL DEFAULT 0 COMMENT '总购买次数',
+    `last_active_time`     DATETIME     DEFAULT NULL COMMENT '最后活跃时间',
+    `profile_snapshot`     JSON         DEFAULT NULL COMMENT '画像快照',
+    `status`               TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-禁用,1-启用',
+    `ext_info`             JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`              TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_last_active` (`last_active_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户购物车画像表';
+
+-- SKU关联示例数据
+INSERT INTO `t_sku_association` (`tenant_id`, `biz_type`, `source_sku_id`, `target_sku_id`,
+    `co_occurrence_count`, `support`, `confidence`, `lift`, `total_transactions`,
+    `source_count`, `target_count`, `algorithm`, `stat_start_time`, `stat_end_time`, `status`)
+VALUES
+    ('default', 'ecommerce', 'SKU001', 'SKU002', 45, 0.15, 0.75, 2.5, 300, 60, 90, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU001', 'SKU003', 38, 0.13, 0.63, 2.1, 300, 60, 55, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU002', 'SKU001', 45, 0.15, 0.50, 2.5, 300, 90, 60, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU002', 'SKU006', 32, 0.11, 0.36, 2.8, 300, 90, 38, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU004', 'SKU005', 28, 0.09, 0.56, 3.2, 300, 50, 35, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU003', 'SKU001', 38, 0.13, 0.69, 2.1, 300, 55, 60, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU005', 'SKU004', 28, 0.09, 0.80, 3.2, 300, 35, 50, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
+    ('default', 'ecommerce', 'SKU006', 'SKU002', 32, 0.11, 0.84, 2.8, 300, 38, 90, 'cf',
+     DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1);
