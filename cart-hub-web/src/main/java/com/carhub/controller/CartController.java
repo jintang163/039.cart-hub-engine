@@ -126,7 +126,7 @@ public class CartController {
 
     @ApiOperation("接受分享（合并到我的购物车）")
     @PostMapping("/share/accept/{shareId}")
-    public R<Boolean> acceptShare(
+    public R<Map<String, Object>> acceptShare(
             @ApiParam("分享ID") @PathVariable @NotBlank String shareId,
             @ApiParam("访问密码") @RequestParam(required = false) String password) {
         return R.ok(cartShareService.acceptShare(shareId, password));

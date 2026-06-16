@@ -128,7 +128,7 @@ public class CartValidateService {
     /**
      * 从业务配置表获取校验地址，而非全局配置
      */
-    private List<ProductValidateResult> remoteValidate(String tenantId, String bizType,
+    public List<ProductValidateResult> remoteValidate(String tenantId, String bizType,
                                                         List<ProductValidateDTO> list) {
         BizConfigEntity config = bizConfigService.getConfig(tenantId, bizType);
         String validateUrl = (config != null && StringUtils.isNotBlank(config.getValidateUrl()))

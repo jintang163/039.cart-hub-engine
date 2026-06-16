@@ -29,7 +29,7 @@ export declare class CartHubSDK {
 
     createShare(options?: CreateShareOptions): Promise<ShareResult>;
     viewShare(shareId: string, password?: string): Promise<CartData>;
-    acceptShare(shareId: string, password?: string): Promise<boolean>;
+    acceptShare(shareId: string, password?: string): Promise<AcceptShareResult>;
     listMyShares(): Promise<ShareEntity[]>;
     cancelShare(shareId: string): Promise<boolean>;
 
@@ -189,6 +189,26 @@ export interface ShareResult {
     shareId: string;
     expireTime: string;
     needPassword: boolean;
+    itemCount?: number;
+    totalAmount?: string;
+}
+
+export interface AcceptShareResult {
+    success: boolean;
+    mergedCount: number;
+    mergedQuantity: number;
+    mergedAmount: string;
+    message: string;
+    invalidItems: InvalidItem[];
+}
+
+export interface InvalidItem {
+    skuId: string;
+    itemName?: string;
+    itemImage?: string;
+    quantity: number;
+    unitPrice: string;
+    reason: string;
 }
 
 export interface ShareEntity {

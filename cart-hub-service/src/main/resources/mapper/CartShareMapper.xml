@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.carhub.mapper.CartShareMapper">
+
+    <resultMap id="BaseResultMap" type="com.carhub.domain.entity.CartShareEntity">
+        <id column="id" property="id"/>
+        <result column="share_id" property="shareId"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="biz_type" property="bizType"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="title" property="title"/>
+        <result column="cart_snapshot" property="cartSnapshot"/>
+        <result column="item_count" property="itemCount"/>
+        <result column="total_quantity" property="totalQuantity"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="share_type" property="shareType"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="accept_count" property="acceptCount"/>
+        <result column="expire_time" property="expireTime"/>
+        <result column="password" property="password"/>
+        <result column="ext_info" property="extInfo"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <update id="incrementViewCount">
+        UPDATE t_cart_share
+        SET view_count = view_count + 1, update_time = CURRENT_TIMESTAMP
+        WHERE share_id = #{shareId} AND deleted = 0
+    </update>
+
+    <update id="incrementAcceptCount">
+        UPDATE t_cart_share
+        SET accept_count = accept_count + 1, update_time = CURRENT_TIMESTAMP
+        WHERE share_id = #{shareId} AND deleted = 0
+    </update>
+
+    <select id="selectByOwner" resultMap="BaseResultMap">
+        SELECT * FROM t_cart_share
+        WHERE tenant_id = #{tenantId}
+          AND biz_type = #{bizType}
+          AND owner_id = #{ownerId}
+          AND deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <delete id="deleteExpiredShares">
+        DELETE FROM t_cart_share
+        WHERE expire_time <![CDATA[ < ]]> #{expireTime} AND deleted = 0
+    </delete>
+
+</mapper>
