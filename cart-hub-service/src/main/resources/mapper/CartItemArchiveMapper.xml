@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.carhub.mapper.CartItemArchiveMapper">
+
+    <resultMap id="BaseResultMap" type="com.carhub.domain.entity.CartItemArchiveEntity">
+        <id column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="biz_type" property="bizType"/>
+        <result column="user_id" property="userId"/>
+        <result column="cart_archive_id" property="cartArchiveId"/>
+        <result column="sku_id" property="skuId"/>
+        <result column="spu_id" property="spuId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="shop_id" property="shopId"/>
+        <result column="item_name" property="itemName"/>
+        <result column="item_image" property="itemImage"/>
+        <result column="item_spec" property="itemSpec"/>
+        <result column="unit_price" property="unitPrice"/>
+        <result column="original_price" property="originalPrice"/>
+        <result column="quantity" property="quantity"/>
+        <result column="subtotal" property="subtotal"/>
+        <result column="discount_amount" property="discountAmount"/>
+        <result column="pay_amount" property="payAmount"/>
+        <result column="stock" property="stock"/>
+        <result column="on_shelf" property="onShelf"/>
+        <result column="selected" property="selected"/>
+        <result column="price_changed" property="priceChanged"/>
+        <result column="old_price" property="oldPrice"/>
+        <result column="add_time" property="addTime"/>
+        <result column="add_source" property="addSource"/>
+        <result column="last_access_time" property="lastAccessTime"/>
+        <result column="archive_time" property="archiveTime"/>
+        <result column="ext_info" property="extInfo"/>
+        <result column="create_time" property="createTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO t_cart_item_archive (
+            tenant_id, biz_type, user_id, cart_archive_id, sku_id, spu_id,
+            category_id, shop_id, item_name, item_image, item_spec,
+            unit_price, original_price, quantity, subtotal, discount_amount, pay_amount,
+            stock, on_shelf, selected, price_changed, old_price,
+            add_time, add_source, last_access_time, archive_time, ext_info
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.tenantId}, #{item.bizType}, #{item.userId}, #{item.cartArchiveId},
+                #{item.skuId}, #{item.spuId}, #{item.categoryId}, #{item.shopId},
+                #{item.itemName}, #{item.itemImage}, #{item.itemSpec},
+                #{item.unitPrice}, #{item.originalPrice}, #{item.quantity},
+                #{item.subtotal}, #{item.discountAmount}, #{item.payAmount},
+                #{item.stock}, #{item.onShelf}, #{item.selected}, #{item.priceChanged}, #{item.oldPrice},
+                #{item.addTime}, #{item.addSource}, #{item.lastAccessTime}, #{item.archiveTime}, #{item.extInfo}
+            )
+        </foreach>
+    </insert>
+
+    <update id="cleanExpiredArchives">
+        UPDATE t_cart_item_archive
+        SET deleted = 1
+        WHERE deleted = 0
+        AND archive_time <![CDATA[ < ]]> #{beforeTime}
+        LIMIT #{limit}
+    </update>
+
+</mapper>

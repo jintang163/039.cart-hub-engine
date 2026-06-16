@@ -50,6 +50,7 @@ public class CartRedisStorage {
         if (added) {
             setCartExpire(cartKey);
             incrementVersion(cartKey);
+            updateLastAccessTime(tenantId, bizType, userId);
         }
         if (log.isDebugEnabled()) {
             log.debug("addItem result: tenantId={}, bizType={}, userId={}, skuId={}, added={}",
@@ -120,6 +121,7 @@ public class CartRedisStorage {
         cartMap.fastPut(item.getSkuId(), JsonUtil.toJson(oldItem));
         setCartExpire(cartKey);
         incrementVersion(cartKey);
+        updateLastAccessTime(tenantId, bizType, userId);
         return true;
     }
 
@@ -154,6 +156,7 @@ public class CartRedisStorage {
         }
         setCartExpire(cartKey);
         incrementVersion(cartKey);
+        updateLastAccessTime(tenantId, bizType, userId);
         return true;
     }
 
@@ -166,6 +169,7 @@ public class CartRedisStorage {
         Object removed = cartMap.remove(skuId);
         if (removed != null) {
             incrementVersion(cartKey);
+            updateLastAccessTime(tenantId, bizType, userId);
             return true;
         }
         return false;
@@ -186,6 +190,7 @@ public class CartRedisStorage {
         long count = result.stream().filter(Objects::nonNull).count();
         if (count > 0) {
             incrementVersion(cartKey);
+            updateLastAccessTime(tenantId, bizType, userId);
         }
         return count;
     }
@@ -196,6 +201,7 @@ public class CartRedisStorage {
         cartMap.delete();
         deleteVersion(cartKey);
         clearCartMeta(tenantId, bizType, userId);
+        clearLastAccessAndRemind(tenantId, bizType, userId);
         return true;
     }
 
@@ -281,8 +287,113 @@ public class CartRedisStorage {
             cart.setDiscountCalculateTime(meta.getDiscountCalculateTime());
         }
 
+        Long lastAccessTime = getLastAccessTime(tenantId, bizType, userId);
+        cart.setLastAccessTime(lastAccessTime);
+        if (lastAccessTime != null && cartHubProperties.getCleanup() != null
+                && cartHubProperties.getCleanup().getItemRetentionDays() != null) {
+            long expireMs = lastAccessTime + cartHubProperties.getCleanup().getItemRetentionDays() * 86400_000L;
+            cart.setExpireTime(expireMs);
+        }
+
+        updateLastAccessTime(tenantId, bizType, userId);
         cart.recalculate();
         return cart;
+    }
+
+    public void updateLastAccessTime(String tenantId, String bizType, String userId) {
+        String key = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, userId);
+        stringRedisTemplate.opsForValue().set(key, String.valueOf(System.currentTimeMillis()),
+                Duration.ofSeconds(cartHubProperties.getRedis().getCartExpireSeconds()));
+    }
+
+    public Long getLastAccessTime(String tenantId, String bizType, String userId) {
+        String key = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, userId);
+        String value = stringRedisTemplate.opsForValue().get(key);
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    public void setExpireReminded(String tenantId, String bizType, String userId, int days) {
+        String key = RedisKeyConstant.buildExpireRemindKey(tenantId, bizType, userId);
+        stringRedisTemplate.opsForValue().set(key, String.valueOf(days),
+                Duration.ofDays(days + 1));
+    }
+
+    public boolean hasExpireReminded(String tenantId, String bizType, String userId) {
+        String key = RedisKeyConstant.buildExpireRemindKey(tenantId, bizType, userId);
+        return Boolean.TRUE.equals(stringRedisTemplate.hasKey(key));
+    }
+
+    public List<String> scanExpiredCarts(String tenantId, String bizType, long expireBeforeTs, int limit) {
+        List<String> result = new ArrayList<>();
+        String pattern = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, "*");
+        var keys = redissonClient.getKeys().getKeysByPattern(pattern, 100);
+        int count = 0;
+        for (String key : keys) {
+            if (count >= limit) break;
+            String value = stringRedisTemplate.opsForValue().get(key);
+            if (StringUtils.isNotBlank(value)) {
+                try {
+                    long lastAccess = Long.parseLong(value);
+                    if (lastAccess <= expireBeforeTs) {
+                        String userId = extractUserIdFromAccessKey(key, tenantId, bizType);
+                        if (userId != null) {
+                            result.add(userId);
+                            count++;
+                        }
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return result;
+    }
+
+    public List<String> scanExpiringCarts(String tenantId, String bizType, long remindBeforeTs,
+                                          long expireBeforeTs, int limit) {
+        List<String> result = new ArrayList<>();
+        String pattern = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, "*");
+        var keys = redissonClient.getKeys().getKeysByPattern(pattern, 100);
+        int count = 0;
+        for (String key : keys) {
+            if (count >= limit) break;
+            String value = stringRedisTemplate.opsForValue().get(key);
+            if (StringUtils.isNotBlank(value)) {
+                try {
+                    long lastAccess = Long.parseLong(value);
+                    if (lastAccess <= remindBeforeTs && lastAccess > expireBeforeTs) {
+                        String userId = extractUserIdFromAccessKey(key, tenantId, bizType);
+                        if (userId != null) {
+                            result.add(userId);
+                            count++;
+                        }
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return result;
+    }
+
+    private String extractUserIdFromAccessKey(String key, String tenantId, String bizType) {
+        try {
+            String prefix = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, "");
+            prefix = prefix.substring(0, prefix.length() - 2);
+            return key.substring(prefix.length());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public void clearLastAccessAndRemind(String tenantId, String bizType, String userId) {
+        stringRedisTemplate.delete(RedisKeyConstant.buildLastAccessKey(tenantId, bizType, userId));
+        stringRedisTemplate.delete(RedisKeyConstant.buildExpireRemindKey(tenantId, bizType, userId));
     }
 
     public Integer getItemCount(String tenantId, String bizType, String userId) {
@@ -322,6 +433,7 @@ public class CartRedisStorage {
         cartMap.fastPut(skuId, JsonUtil.toJson(item));
         setCartExpire(cartKey);
         incrementVersion(cartKey);
+        updateLastAccessTime(tenantId, bizType, userId);
         return (long) newQty;
     }
 

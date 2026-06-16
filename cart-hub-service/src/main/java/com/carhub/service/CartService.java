@@ -42,6 +42,7 @@ public class CartService {
     private final CartRecommendService cartRecommendService;
     private final SensitiveWordFilterService sensitiveWordFilterService;
     private final PromotionEngineService promotionEngineService;
+    private final CartExpireCleanupService cartExpireCleanupService;
 
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -550,6 +551,20 @@ public class CartService {
                     cart.getTenantId(), cart.getBizType(), totalAmount));
         } catch (Exception e) {
             log.warn("calculate tiered discount progress failed", e);
+        }
+
+        try {
+            Map<String, Object> expireInfo = cartExpireCleanupService.getExpireInfo(
+                    cart.getTenantId(), cart.getBizType(), cart.getUserId());
+            builder.lastAccessTime((Long) expireInfo.get("lastAccessTime"));
+            builder.expireTime((Long) expireInfo.get("expireTime"));
+            builder.daysLeft((Long) expireInfo.get("daysLeft"));
+            builder.hoursLeft((Long) expireInfo.get("hoursLeft"));
+            builder.isExpiring((Boolean) expireInfo.get("isExpiring"));
+            builder.isExpired((Boolean) expireInfo.get("isExpired"));
+            builder.hasExpireReminded((Boolean) expireInfo.get("hasReminded"));
+        } catch (Exception e) {
+            log.warn("get expire info failed", e);
         }
 
         return builder.build();

@@ -49,6 +49,15 @@ CREATE TABLE `t_biz_config` (
     `cart_expire_sec`    INT          NOT NULL DEFAULT 864000 COMMENT '购物车过期时间(s)',
     `share_expire_sec`   INT          NOT NULL DEFAULT 86400 COMMENT '分享过期时间(s)',
     `snapshot_expire_sec`INT          NOT NULL DEFAULT 2592000 COMMENT '快照过期时间(s)',
+    `item_retention_days`INT          NOT NULL DEFAULT 30 COMMENT '购物车商品保留天数',
+    `remind_before_days` INT          NOT NULL DEFAULT 3 COMMENT '过期前提醒天数',
+    `cleanup_enable`     TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用自动清理:0-否,1-是',
+    `cleanup_cron`       VARCHAR(64)  NOT NULL DEFAULT '0 0 2 * * ?' COMMENT '清理任务cron表达式',
+    `cleanup_batch_size` INT          NOT NULL DEFAULT 100 COMMENT '清理批量大小',
+    `notify_enable`      TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用消息通知:0-否,1-是',
+    `notify_channels`    VARCHAR(128) NOT NULL DEFAULT 'wechat,sms' COMMENT '通知渠道(逗号分隔)',
+    `archive_enable`     TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用归档:0-否,1-是',
+    `archive_retention_days`INT       NOT NULL DEFAULT 180 COMMENT '归档保留天数',
     `discount_enable`    TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用优惠:0-否,1-是',
     `description`        VARCHAR(512) DEFAULT NULL COMMENT '描述',
     `ext_config`         JSON         DEFAULT NULL COMMENT '扩展配置',
@@ -593,3 +602,72 @@ CREATE TABLE `t_favorite_item` (
     KEY `idx_sku` (`tenant_id`, `biz_type`, `sku_id`),
     KEY `idx_add_time` (`add_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品收藏夹表';
+
+-- ============================================================
+-- 17. 购物车归档表（冷存储）
+-- ============================================================
+DROP TABLE IF EXISTS `t_cart_archive`;
+CREATE TABLE `t_cart_archive` (
+    `id`                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`         VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`          VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`           VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `item_count`        INT          NOT NULL DEFAULT 0 COMMENT '购物车商品项数',
+    `total_quantity`    INT          NOT NULL DEFAULT 0 COMMENT '商品总数量',
+    `total_amount`      DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '商品总金额(原价)',
+    `discount_amount`   DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '优惠总金额',
+    `pay_amount`        DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '实付总金额',
+    `last_access_time`  DATETIME     DEFAULT NULL COMMENT '最后访问时间',
+    `archive_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '归档时间',
+    `archive_reason`    VARCHAR(64)  NOT NULL DEFAULT 'expired_auto_cleanup' COMMENT '归档原因:expired_auto_cleanup-过期自动清理/user_clear-用户主动清空',
+    `version`           BIGINT       NOT NULL DEFAULT 0 COMMENT '版本号',
+    `ext_info`          JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `deleted`           TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_tenant_biz_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_archive_time` (`archive_time`),
+    KEY `idx_last_access` (`last_access_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='购物车归档表(冷存储)';
+
+-- ============================================================
+-- 18. 购物车商品项归档表（冷存储）
+-- ============================================================
+DROP TABLE IF EXISTS `t_cart_item_archive`;
+CREATE TABLE `t_cart_item_archive` (
+    `id`                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`         VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`          VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`           VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `cart_archive_id`   BIGINT       NOT NULL COMMENT '购物车归档ID',
+    `sku_id`            VARCHAR(128) NOT NULL COMMENT '商品SKU ID',
+    `spu_id`            VARCHAR(128) DEFAULT NULL COMMENT '商品SPU ID',
+    `category_id`       VARCHAR(64)  DEFAULT NULL COMMENT '分类ID',
+    `shop_id`           VARCHAR(64)  DEFAULT NULL COMMENT '店铺ID',
+    `item_name`         VARCHAR(256) NOT NULL COMMENT '商品名称',
+    `item_image`        VARCHAR(512) DEFAULT NULL COMMENT '商品图片',
+    `item_spec`         VARCHAR(512) DEFAULT NULL COMMENT '商品规格(JSON)',
+    `unit_price`        DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '商品单价(快照)',
+    `original_price`    DECIMAL(18,2)DEFAULT 0.00 COMMENT '原价(划线价)',
+    `quantity`          INT          NOT NULL DEFAULT 1 COMMENT '购买数量',
+    `subtotal`          DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '小计金额',
+    `discount_amount`   DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '优惠金额',
+    `pay_amount`        DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '实付金额',
+    `stock`             INT          DEFAULT NULL COMMENT '库存',
+    `on_shelf`          TINYINT      NOT NULL DEFAULT 1 COMMENT '是否上架:0-下架,1-上架',
+    `selected`          TINYINT      NOT NULL DEFAULT 1 COMMENT '是否选中:0-未选中,1-选中',
+    `price_changed`     TINYINT      NOT NULL DEFAULT 0 COMMENT '价格是否变动:0-否,1-是',
+    `old_price`         DECIMAL(18,2)DEFAULT NULL COMMENT '变动前价格',
+    `add_time`          DATETIME     DEFAULT NULL COMMENT '加入购物车时间',
+    `add_source`        VARCHAR(32)  DEFAULT NULL COMMENT '加入来源:web/app/mini',
+    `last_access_time`  DATETIME     DEFAULT NULL COMMENT '最后访问时间',
+    `archive_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '归档时间',
+    `ext_info`          JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `deleted`           TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_tenant_biz_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_cart_archive_id` (`cart_archive_id`),
+    KEY `idx_archive_time` (`archive_time`),
+    KEY `idx_sku_id` (`sku_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='购物车商品项归档表(冷存储)';

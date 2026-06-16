@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.carhub.mapper.CartArchiveMapper">
+
+    <resultMap id="BaseResultMap" type="com.carhub.domain.entity.CartArchiveEntity">
+        <id column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="biz_type" property="bizType"/>
+        <result column="user_id" property="userId"/>
+        <result column="item_count" property="itemCount"/>
+        <result column="total_quantity" property="totalQuantity"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="discount_amount" property="discountAmount"/>
+        <result column="pay_amount" property="payAmount"/>
+        <result column="last_access_time" property="lastAccessTime"/>
+        <result column="archive_time" property="archiveTime"/>
+        <result column="archive_reason" property="archiveReason"/>
+        <result column="version" property="version"/>
+        <result column="ext_info" property="extInfo"/>
+        <result column="create_time" property="createTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO t_cart_archive (
+            tenant_id, biz_type, user_id, item_count, total_quantity,
+            total_amount, discount_amount, pay_amount, last_access_time,
+            archive_time, archive_reason, version, ext_info
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.tenantId}, #{item.bizType}, #{item.userId}, #{item.itemCount}, #{item.totalQuantity},
+                #{item.totalAmount}, #{item.discountAmount}, #{item.payAmount}, #{item.lastAccessTime},
+                #{item.archiveTime}, #{item.archiveReason}, #{item.version}, #{item.extInfo}
+            )
+        </foreach>
+    </insert>
+
+    <update id="cleanExpiredArchives">
+        UPDATE t_cart_archive
+        SET deleted = 1
+        WHERE deleted = 0
+        AND archive_time <![CDATA[ < ]]> #{beforeTime}
+        LIMIT #{limit}
+    </update>
+
+</mapper>

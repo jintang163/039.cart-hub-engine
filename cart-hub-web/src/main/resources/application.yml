@@ -122,6 +122,19 @@ cart-hub:
     stock-timeout-ms: 3000
     max-concurrent-per-user: 3
     notify-url: http://localhost:8081/notify/checkout
+  cleanup:
+    enable: true
+    item-retention-days: 30
+    remind-before-days: 3
+    cron: "0 0 2 * * ?"
+    batch-size: 100
+    enable-notification: true
+    notify-channels: wechat,sms
+    wechat-template-id: CART_EXPIRE_TEMPLATE
+    sms-template-id: SMS_CART_EXPIRE
+    notify-api-url: http://localhost:8081/notify/send
+    archive-to-db: true
+    archive-retention-days: 180
 
 knife4j:
   enable: true

@@ -23,6 +23,7 @@ public class CartHubProperties {
     private Remark remark = new Remark();
     private Share share = new Share();
     private Checkout checkout = new Checkout();
+    private Cleanup cleanup = new Cleanup();
 
     @Data
     public static class Redis {
@@ -109,6 +110,22 @@ public class CartHubProperties {
         private Integer maxConcurrentPerUser = 3;
         private String notifyUrl;
         private Boolean mockStock = true;
+    }
+
+    @Data
+    public static class Cleanup {
+        private Boolean enable = true;
+        private Integer itemRetentionDays = 30;
+        private Integer remindBeforeDays = 3;
+        private String cron = "0 0 2 * * ?";
+        private Integer batchSize = 100;
+        private Boolean enableNotification = true;
+        private String notifyChannels = "wechat,sms";
+        private String wechatTemplateId;
+        private String smsTemplateId;
+        private String notifyApiUrl;
+        private Boolean archiveToDb = true;
+        private Integer archiveRetentionDays = 180;
     }
 
     @Bean

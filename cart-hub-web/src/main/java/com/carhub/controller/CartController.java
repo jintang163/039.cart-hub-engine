@@ -36,6 +36,7 @@ public class CartController {
     private final CartPromotionService cartPromotionService;
     private final PromotionEngineService promotionEngineService;
     private final CartRecommendService cartRecommendService;
+    private final CartExpireCleanupService cartExpireCleanupService;
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
@@ -364,6 +365,15 @@ public class CartController {
     @PutMapping("/items/sort")
     public R<Integer> batchSort(@RequestBody @Valid BatchSortDTO dto) {
         return R.ok(cartService.batchSort(dto));
+    }
+
+    @ApiOperation("获取购物车过期信息")
+    @GetMapping("/expire-info")
+    public R<Map<String, Object>> getExpireInfo() {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartExpireCleanupService.getExpireInfo(tenantId, bizType, userId));
     }
 
     @Resource

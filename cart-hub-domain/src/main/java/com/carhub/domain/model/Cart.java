@@ -65,6 +65,10 @@ public class Cart implements Serializable {
 
     private Long discountCalculateTime;
 
+    private Long lastAccessTime;
+
+    private Long expireTime;
+
     public void recalculate() {
         if (this.items == null) {
             this.items = new ArrayList<>();

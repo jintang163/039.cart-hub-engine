@@ -81,4 +81,18 @@ public class CartVO implements Serializable {
 
     private Integer removeFailCount;
 
+    private Long lastAccessTime;
+
+    private Long expireTime;
+
+    private Long daysLeft;
+
+    private Long hoursLeft;
+
+    private Boolean isExpiring;
+
+    private Boolean isExpired;
+
+    private Boolean hasExpireReminded;
+
 }

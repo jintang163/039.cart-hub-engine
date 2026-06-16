@@ -30,6 +30,14 @@ public class RedisKeyConstant {
 
     public static final String SKU_CO_OCCURRENCE_KEY = CART_PREFIX + "cooccurrence:{%s}:{%s}";
 
+    public static final String CART_LAST_ACCESS_KEY = CART_PREFIX + "last_access:{%s}:{%s}:{%s}";
+
+    public static final String CART_EXPIRE_REMIND_KEY = CART_PREFIX + "expire_remind:{%s}:{%s}:{%s}";
+
+    public static final String CART_CLEANUP_LOCK_KEY = CART_PREFIX + "cleanup:lock";
+
+    public static final String CART_CLEANUP_STAT_KEY = CART_PREFIX + "cleanup:stat:{%s}";
+
     public static String buildCartKey(String tenantId, String bizType, String userId) {
         return String.format(CART_HASH_KEY, tenantId, bizType, userId);
     }
@@ -90,6 +98,18 @@ public class RedisKeyConstant {
 
     public static String buildSkuCoOccurrenceKey(String tenantId, String bizType) {
         return String.format(SKU_CO_OCCURRENCE_KEY, tenantId, bizType);
+    }
+
+    public static String buildLastAccessKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_LAST_ACCESS_KEY, tenantId, bizType, userId);
+    }
+
+    public static String buildExpireRemindKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_EXPIRE_REMIND_KEY, tenantId, bizType, userId);
+    }
+
+    public static String buildCleanupStatKey(String date) {
+        return String.format(CART_CLEANUP_STAT_KEY, date);
     }
 
 }

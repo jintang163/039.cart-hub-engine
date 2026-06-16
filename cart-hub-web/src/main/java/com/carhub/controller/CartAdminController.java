@@ -19,6 +19,7 @@ public class CartAdminController {
 
     private final BizConfigService bizConfigService;
     private final CartStatisticsService cartStatisticsService;
+    private final CartExpireCleanupService cartExpireCleanupService;
 
     @ApiOperation("获取购物车使用统计概览")
     @GetMapping("/statistics/overview")
@@ -75,6 +76,22 @@ public class CartAdminController {
     public R<Map<String, Object>> getRealtimeStatistics(
             @RequestParam(required = false) String bizType) {
         return R.ok(cartStatisticsService.getRealtimeStatistics(bizType));
+    }
+
+    @ApiOperation("手动触发过期购物车清理任务")
+    @PostMapping("/cleanup/trigger")
+    public R<String> triggerCleanup() {
+        cartExpireCleanupService.triggerManualCleanup();
+        return R.ok("清理任务已触发");
+    }
+
+    @ApiOperation("获取指定用户购物车过期信息")
+    @GetMapping("/cleanup/expire-info/{userId}")
+    public R<Map<String, Object>> getUserExpireInfo(
+            @PathVariable String userId,
+            @RequestParam(required = false, defaultValue = "default") String tenantId,
+            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+        return R.ok(cartExpireCleanupService.getExpireInfo(tenantId, bizType, userId));
     }
 
 }
