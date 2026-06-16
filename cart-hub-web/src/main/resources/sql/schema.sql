@@ -560,3 +560,36 @@ CREATE TABLE `t_checkout_snapshot` (
     KEY `idx_expire` (`expire_time`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='结算快照表(预下单)';
+
+-- ============================================================
+-- 16. 商品收藏夹表
+-- ============================================================
+DROP TABLE IF EXISTS `t_favorite_item`;
+CREATE TABLE `t_favorite_item` (
+    `id`                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`         VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`          VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`           VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `sku_id`            VARCHAR(128) NOT NULL COMMENT '商品SKU ID',
+    `spu_id`            VARCHAR(128) DEFAULT NULL COMMENT '商品SPU ID',
+    `category_id`       VARCHAR(64)  DEFAULT NULL COMMENT '分类ID',
+    `shop_id`           VARCHAR(64)  DEFAULT NULL COMMENT '店铺ID',
+    `item_name`         VARCHAR(255) NOT NULL COMMENT '商品名称',
+    `item_image`        VARCHAR(512) DEFAULT NULL COMMENT '商品图片',
+    `item_spec`         JSON         DEFAULT NULL COMMENT '商品规格(JSON)',
+    `unit_price`        DECIMAL(18,2)NOT NULL COMMENT '商品单价',
+    `original_price`    DECIMAL(18,2)DEFAULT NULL COMMENT '原价',
+    `on_shelf`          TINYINT      NOT NULL DEFAULT 1 COMMENT '是否上架:0-下架,1-上架',
+    `price_changed`     TINYINT      NOT NULL DEFAULT 0 COMMENT '价格是否变动:0-否,1-是',
+    `add_time`          BIGINT       NOT NULL COMMENT '收藏时间(毫秒时间戳)',
+    `add_source`        VARCHAR(32)  DEFAULT NULL COMMENT '收藏来源',
+    `ext_info`          JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`           TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_sku` (`tenant_id`, `biz_type`, `user_id`, `sku_id`),
+    KEY `idx_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_sku` (`tenant_id`, `biz_type`, `sku_id`),
+    KEY `idx_add_time` (`add_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品收藏夹表';

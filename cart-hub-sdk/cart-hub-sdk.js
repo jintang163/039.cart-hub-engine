@@ -620,6 +620,117 @@
             });
         }
 
+        async getFavorite() {
+            const result = await this._request('/api/favorite');
+            this._emit('favoriteChanged', result);
+            return result;
+        }
+
+        async isFavorited(skuId) {
+            if (!skuId) {
+                throw new Error('skuId is required');
+            }
+            return await this._request('/api/favorite/check/' + encodeURIComponent(skuId));
+        }
+
+        async getFavoriteCount() {
+            return await this._request('/api/favorite/count');
+        }
+
+        async addFavoriteItem(item) {
+            if (!item || !item.skuId) {
+                throw new Error('skuId is required');
+            }
+            const result = await this._request('/api/favorite/item', {
+                method: 'POST',
+                body: item
+            });
+            this._emit('favoriteChanged', result);
+            this._emit('favoriteAdded', { skuId: item.skuId, favorite: result });
+            return result;
+        }
+
+        async addFavoriteItems(items) {
+            if (!Array.isArray(items) || items.length === 0) {
+                throw new Error('items must be a non-empty array');
+            }
+            const result = await this._request('/api/favorite/items', {
+                method: 'POST',
+                body: items
+            });
+            this._emit('favoriteChanged', result);
+            return result;
+        }
+
+        async removeFavoriteItem(skuId) {
+            if (!skuId) {
+                throw new Error('skuId is required');
+            }
+            const result = await this._request('/api/favorite/item/' + encodeURIComponent(skuId), {
+                method: 'DELETE'
+            });
+            this._emit('favoriteChanged', result);
+            this._emit('favoriteRemoved', { skuId, favorite: result });
+            return result;
+        }
+
+        async removeFavoriteItems(skuIds) {
+            if (!Array.isArray(skuIds) || skuIds.length === 0) {
+                throw new Error('skuIds must be a non-empty array');
+            }
+            const result = await this._request('/api/favorite/items', {
+                method: 'DELETE',
+                body: skuIds
+            });
+            this._emit('favoriteChanged', result);
+            return result;
+        }
+
+        async clearFavorite() {
+            const result = await this._request('/api/favorite/clear', {
+                method: 'DELETE'
+            });
+            this._emit('favoriteChanged', result);
+            this._emit('favoriteCleared', result);
+            return result;
+        }
+
+        async favoriteAddToCart(skuIds, removeFromFavorite = false) {
+            if (!Array.isArray(skuIds) || skuIds.length === 0) {
+                throw new Error('skuIds must be a non-empty array');
+            }
+            const result = await this._request('/api/favorite/cart/add', {
+                method: 'POST',
+                body: { skuIds, removeFromFavorite }
+            });
+            this._emit('cartChanged', result);
+            this._emit('favoriteToCart', { skuIds, result });
+            return result;
+        }
+
+        async favoriteAllToCart(removeFromFavorite = false) {
+            const result = await this._request('/api/favorite/cart/add-all', {
+                method: 'POST',
+                body: { removeFromFavorite }
+            });
+            this._emit('cartChanged', result);
+            this._emit('favoriteToCart', { all: true, result });
+            return result;
+        }
+
+        toggleFavorite(item) {
+            if (!item || !item.skuId) {
+                return Promise.reject(new Error('skuId is required'));
+            }
+            return this.isFavorited(item.skuId).then(favorited => {
+                if (favorited) {
+                    return this.removeFavoriteItem(item.skuId);
+                } else {
+                    return this.addFavoriteItem(item);
+                }
+            });
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);

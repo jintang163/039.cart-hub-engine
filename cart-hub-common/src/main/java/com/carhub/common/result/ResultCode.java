@@ -45,7 +45,12 @@ public enum ResultCode {
     CHECKOUT_PRICE_CHANGED(6006, "商品价格已变动，请重新确认"),
     CHECKOUT_ALREADY_CONFIRMED(6007, "结算已确认，请勿重复操作"),
     CHECKOUT_ALREADY_CANCELED(6008, "结算已取消"),
-    CHECKOUT_EXPIRED(6009, "结算已过期，请重新结算");
+    CHECKOUT_EXPIRED(6009, "结算已过期，请重新结算"),
+
+    FAVORITE_ITEM_NOT_FOUND(7001, "收藏商品不存在"),
+    FAVORITE_ALREADY_EXISTS(7002, "商品已收藏"),
+    FAVORITE_EMPTY(7003, "收藏夹为空"),
+    FAVORITE_ADD_FAILED(7004, "添加收藏失败");
 
     private final Integer code;
     private final String message;

@@ -73,4 +73,12 @@ public class CartVO implements Serializable {
 
     private TieredDiscountProgressVO tieredDiscountProgress;
 
+    private Integer addSuccessCount;
+
+    private Integer addFailCount;
+
+    private Integer removeSuccessCount;
+
+    private Integer removeFailCount;
+
 }
