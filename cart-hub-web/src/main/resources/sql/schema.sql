@@ -525,3 +525,38 @@ VALUES
      DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1),
     ('default', 'ecommerce', 'SKU006', 'SKU002', 32, 0.11, 0.84, 2.8, 300, 38, 90, 'cf',
      DATE_SUB(NOW(), INTERVAL 30 DAY), NOW(), 1);
+
+-- ============================================================
+-- 15. 结算快照表（预下单）
+-- ============================================================
+DROP TABLE IF EXISTS `t_checkout_snapshot`;
+CREATE TABLE `t_checkout_snapshot` (
+    `id`                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `checkout_token`    VARCHAR(64)  NOT NULL COMMENT '结算Token(唯一标识)',
+    `tenant_id`         VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`          VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`           VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `cart_snapshot`     JSON         NOT NULL COMMENT '购物车快照数据(JSON)',
+    `item_count`        INT          NOT NULL DEFAULT 0 COMMENT '商品项数',
+    `total_quantity`    INT          NOT NULL DEFAULT 0 COMMENT '商品总数量',
+    `total_amount`      DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '商品总金额(原价)',
+    `discount_amount`   DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '优惠总金额',
+    `pay_amount`        DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '实付总金额',
+    `stock_status`      TINYINT      NOT NULL DEFAULT 0 COMMENT '库存预占状态:0-未预占,1-预占成功,2-预占失败,3-已释放',
+    `stock_lock_code`   VARCHAR(128) DEFAULT NULL COMMENT '库存锁定编码(业务系统返回)',
+    `status`            TINYINT      NOT NULL DEFAULT 0 COMMENT '状态:0-待确认,1-已下单,2-已取消,3-已过期',
+    `order_no`          VARCHAR(128) DEFAULT NULL COMMENT '关联订单号',
+    `expire_time`       DATETIME     NOT NULL COMMENT '过期时间',
+    `client_ip`         VARCHAR(64)  DEFAULT NULL COMMENT '客户端IP',
+    `source`            VARCHAR(32)  DEFAULT NULL COMMENT '来源:web/app/mini',
+    `ext_info`          JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`           TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_checkout_token` (`checkout_token`),
+    KEY `idx_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_expire` (`expire_time`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='结算快照表(预下单)';

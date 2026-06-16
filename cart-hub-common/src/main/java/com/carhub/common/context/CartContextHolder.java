@@ -44,6 +44,10 @@ public class CartContextHolder {
         return getContext().getSource();
     }
 
+    public static String getClientIp() {
+        return getContext().getClientIp();
+    }
+
     private static CartContext buildFromRequest() {
         CartContext context = new CartContext();
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -56,11 +60,29 @@ public class CartContextHolder {
             context.setBizType(StringUtils.defaultIfBlank(bizType, CartConstant.BIZ_TYPE_ECOMMERCE));
             context.setUserId(userId);
             context.setSource(request.getHeader("X-Source"));
+            context.setClientIp(getClientIpFromRequest(request));
+            context.setUserAgent(request.getHeader("User-Agent"));
         } else {
             context.setTenantId(CartConstant.DEFAULT_TENANT_ID);
             context.setBizType(CartConstant.BIZ_TYPE_ECOMMERCE);
         }
         return context;
+    }
+
+    private static String getClientIpFromRequest(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (StringUtils.isNotBlank(ip) && !"unknown".equalsIgnoreCase(ip)) {
+            int index = ip.indexOf(',');
+            if (index != -1) {
+                return ip.substring(0, index).trim();
+            }
+            return ip;
+        }
+        ip = request.getHeader("X-Real-IP");
+        if (StringUtils.isNotBlank(ip) && !"unknown".equalsIgnoreCase(ip)) {
+            return ip;
+        }
+        return request.getRemoteAddr();
     }
 
 }

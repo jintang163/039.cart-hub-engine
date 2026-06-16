@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购物车结算 - 预下单演示</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background: #f5f7fa; padding: 20px; color: #303133; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: #409EFF; }
+        h2 { font-size: 18px; margin: 20px 0 10px; color: #303133; border-left: 4px solid #409EFF; padding-left: 10px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .btn { display: inline-block; padding: 10px 24px; border: 1px solid #409EFF; background: #409EFF;
+               color: #fff; border-radius: 4px; cursor: pointer; margin: 4px; font-size: 14px; transition: all 0.2s; }
+        .btn:hover { background: #66b1ff; border-color: #66b1ff; }
+        .btn-plain { background: #fff; color: #409EFF; }
+        .btn-plain:hover { background: #ecf5ff; }
+        .btn-danger { border-color: #F56C6C; background: #F56C6C; }
+        .btn-danger:hover { background: #f78989; border-color: #f78989; }
+        .btn-success { border-color: #67C23A; background: #67C23A; }
+        .btn-success:hover { background: #85ce61; border-color: #85ce61; }
+        .btn-warning { border-color: #E6A23C; background: #E6A23C; }
+        .btn-warning:hover { background: #ebb563; border-color: #ebb563; }
+        .btn-disabled { opacity: 0.5; cursor: not-allowed; }
+        .input-group { margin: 8px 0; }
+        label { display: inline-block; width: 120px; font-size: 14px; color: #606266; }
+        input { padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; width: 250px; font-size: 14px; }
+        input:focus { outline: none; border-color: #409EFF; }
+        pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 6px;
+              overflow-x: auto; font-size: 13px; line-height: 1.5; margin-top: 10px; max-height: 300px; }
+
+        .cart-items { list-style: none; }
+        .cart-item { display: flex; align-items: center; padding: 16px; border-bottom: 1px solid #f0f0f0; }
+        .cart-item:last-child { border-bottom: none; }
+        .item-checkbox { margin-right: 12px; width: 18px; height: 18px; cursor: pointer; }
+        .item-image { width: 80px; height: 80px; background: linear-gradient(135deg, #667eea, #764ba2);
+                       border-radius: 6px; margin-right: 16px; display: flex; align-items: center;
+                       justify-content: center; color: #fff; font-size: 24px; flex-shrink: 0; }
+        .item-info { flex: 1; min-width: 0; }
+        .item-name { font-weight: 600; margin-bottom: 6px; font-size: 15px; }
+        .item-spec { font-size: 12px; color: #909399; margin-bottom: 6px; }
+        .item-price { color: #F56C6C; font-size: 16px; font-weight: bold; }
+        .item-qty { display: flex; align-items: center; gap: 8px; margin-right: 20px; }
+        .qty-btn { width: 28px; height: 28px; border: 1px solid #dcdfe6; background: #fff;
+                   border-radius: 4px; cursor: pointer; font-size: 16px; line-height: 1; }
+        .qty-btn:hover { border-color: #409EFF; color: #409EFF; }
+        .qty-num { min-width: 30px; text-align: center; font-weight: 600; }
+        .item-subtotal { width: 100px; text-align: right; color: #F56C6C; font-weight: bold; font-size: 16px; }
+
+        .cart-footer { display: flex; justify-content: space-between; align-items: center;
+                        padding: 20px; background: #fff; border-radius: 8px; margin-top: 16px;
+                        box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+        .footer-left { display: flex; align-items: center; gap: 16px; }
+        .select-all { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .footer-right { display: flex; align-items: center; gap: 20px; }
+        .total-info { text-align: right; }
+        .total-label { font-size: 13px; color: #606266; }
+        .total-amount { color: #F56C6C; font-size: 24px; font-weight: bold; }
+        .checkout-btn { padding: 14px 40px; font-size: 16px; }
+
+        .checkout-page { display: none; }
+        .checkout-page.active { display: block; }
+
+        .countdown-bar { background: linear-gradient(135deg, #667eea, #764ba2);
+                         color: #fff; padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;
+                         display: flex; justify-content: space-between; align-items: center; }
+        .countdown-title { font-size: 14px; opacity: 0.9; }
+        .countdown-time { font-size: 28px; font-weight: bold; font-family: 'Courier New', monospace; }
+        .countdown-warning { animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .checkout-items { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .checkout-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+        .checkout-item:last-child { border-bottom: none; }
+        .checkout-item-img { width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2);
+                             border-radius: 6px; margin-right: 12px; display: flex; align-items: center;
+                             justify-content: center; color: #fff; font-size: 20px; flex-shrink: 0; }
+        .checkout-item-info { flex: 1; }
+        .checkout-item-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+        .checkout-item-price { color: #F56C6C; font-size: 14px; }
+        .checkout-item-qty { color: #909399; font-size: 13px; }
+
+        .order-summary { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+        .summary-label { color: #606266; }
+        .summary-value { color: #303133; }
+        .summary-total { border-top: 1px solid #f0f0f0; margin-top: 12px; padding-top: 16px; }
+        .summary-total .summary-label { font-size: 15px; font-weight: 600; color: #303133; }
+        .summary-total .summary-value { color: #F56C6C; font-size: 22px; font-weight: bold; }
+
+        .stock-status { padding: 16px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .stock-success { background: #f0f9eb; border: 1px solid #e1f3d8; color: #67C23A; }
+        .stock-failed { background: #fef0f0; border: 1px solid #fde2e2; color: #F56C6C; }
+        .stock-pending { background: #fdf6ec; border: 1px solid #faecd8; color: #E6A23C; }
+        .stock-icon { font-size: 20px; }
+
+        .action-buttons { display: flex; gap: 12px; justify-content: flex-end; }
+
+        .tag { display: inline-block; padding: 2px 8px; background: #ecf5ff; color: #409EFF;
+               border-radius: 4px; font-size: 12px; margin: 2px; }
+        .tag-success { background: #f0f9eb; color: #67C23A; }
+        .tag-warning { background: #fdf6ec; color: #E6A23C; }
+        .tag-danger { background: #fef0f0; color: #F56C6C; }
+
+        .checkout-list { list-style: none; }
+        .checkout-list-item { padding: 16px; border: 1px solid #ebeef5; border-radius: 8px;
+                              margin-bottom: 12px; background: #fff; transition: all 0.2s; cursor: pointer; }
+        .checkout-list-item:hover { border-color: #409EFF; box-shadow: 0 2px 12px rgba(64,158,255,0.15); }
+        .checkout-list-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .checkout-list-token { font-family: 'Courier New', monospace; font-size: 13px; color: #606266; }
+        .checkout-list-info { display: flex; justify-content: space-between; font-size: 13px; color: #909399; }
+        .checkout-list-amount { color: #F56C6C; font-weight: bold; font-size: 16px; }
+
+        .config-bar { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;
+                      display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+        .config-item { display: flex; align-items: center; gap: 8px; }
+        .config-label { font-size: 13px; color: #606266; }
+
+        .empty-state { text-align: center; padding: 40px; color: #909399; }
+        .empty-icon { font-size: 48px; margin-bottom: 16px; }
+
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+                 padding: 12px 24px; border-radius: 6px; color: #fff; font-size: 14px;
+                 z-index: 9999; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+        .toast-success { background: #67C23A; }
+        .toast-error { background: #F56C6C; }
+        .toast-warning { background: #E6A23C; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 购物车结算 - 预下单演示</h1>
+
+        <div class="config-bar">
+            <div class="config-item">
+                <label class="config-label">Base URL:</label>
+                <input type="text" id="baseUrl" value="http://localhost:8080/cart-hub" style="width: 220px;">
+            </div>
+            <div class="config-item">
+                <label class="config-label">Tenant ID:</label>
+                <input type="text" id="tenantId" value="default" style="width: 100px;">
+            </div>
+            <div class="config-item">
+                <label class="config-label">Biz Type:</label>
+                <input type="text" id="bizType" value="ecommerce" style="width: 100px;">
+            </div>
+            <div class="config-item">
+                <label class="config-label">User ID:</label>
+                <input type="text" id="userId" value="user001" style="width: 120px;">
+            </div>
+            <button class="btn btn-plain" onclick="initSDK()">初始化</button>
+        </div>
+
+        <div id="cartPage" class="checkout-page active">
+            <div class="card">
+                <h2>商品列表</h2>
+                <div style="margin-bottom: 12px;">
+                    <button class="btn btn-plain" onclick="addSampleItems()">添加示例商品</button>
+                    <button class="btn btn-plain" onclick="loadCart()">刷新购物车</button>
+                    <span class="tag" id="cartCountTag">0 件商品</span>
+                </div>
+                <ul class="cart-items" id="cartItems">
+                    <div class="empty-state">
+                        <div class="empty-icon">🛒</div>
+                        <p>购物车是空的</p>
+                    </div>
+                </ul>
+            </div>
+
+            <div class="cart-footer">
+                <div class="footer-left">
+                    <label class="select-all">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                        全选
+                    </label>
+                    <span style="color: #606266; font-size: 13px;">已选 <span id="selectedCount">0</span> 件</span>
+                </div>
+                <div class="footer-right">
+                    <div class="total-info">
+                        <div class="total-label">合计：</div>
+                        <div class="total-amount">¥<span id="totalAmount">0.00</span></div>
+                    </div>
+                    <button class="btn btn-danger checkout-btn" onclick="goCheckout()">去结算</button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <h2>我的结算单</h2>
+                <button class="btn btn-plain" onclick="loadMyCheckouts()">刷新列表</button>
+                <ul class="checkout-list" id="checkoutList" style="margin-top: 12px;">
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>暂无结算记录</p>
+                    </div>
+                </ul>
+            </div>
+        </div>
+
+        <div id="checkoutPage" class="checkout-page">
+            <button class="btn btn-plain" onclick="backToCart()">← 返回购物车</button>
+
+            <div class="countdown-bar" id="countdownBar">
+                <div>
+                    <div class="countdown-title">⏱️ 请在以下时间内完成下单</div>
+                    <div class="countdown-time" id="countdownTime">15:00</div>
+                </div>
+                <div style="text-align: right;">
+                    <div class="countdown-title">结算Token</div>
+                    <div style="font-family: 'Courier New', monospace; font-size: 14px;" id="checkoutToken">-</div>
+                </div>
+            </div>
+
+            <div class="stock-status stock-success" id="stockStatus">
+                <span class="stock-icon">✅</span>
+                <span>库存已预占锁定，请尽快完成下单</span>
+            </div>
+
+            <div class="checkout-items">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">商品清单</h3>
+                <div id="checkoutItems">
+                </div>
+            </div>
+
+            <div class="order-summary">
+                <h3 style="margin-bottom: 16px; font-size: 16px;">费用明细</h3>
+                <div class="summary-row">
+                    <span class="summary-label">商品总金额</span>
+                    <span class="summary-value" id="sumTotalAmount">¥0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">优惠金额</span>
+                    <span class="summary-value" style="color: #F56C6C;" id="sumDiscount">-¥0.00</span>
+                </div>
+                <div class="summary-row summary-total">
+                    <span class="summary-label">实付金额</span>
+                    <span class="summary-value" id="sumPayAmount">¥0.00</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-plain" onclick="refreshCheckout()">续期结算</button>
+                <button class="btn btn-danger" onclick="cancelCheckout()">取消结算</button>
+                <button class="btn btn-success" onclick="confirmOrder()">确认下单</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="./cart-hub-sdk.js"></script>
+    <script>
+        let sdk = null;
+        let currentCheckoutToken = null;
+        let countdownTimer = null;
+        let currentCart = null;
+
+        const products = [
+            { skuId: 'SKU001', name: '无线蓝牙耳机 Pro', price: 299.00, icon: '🎧' },
+            { skuId: 'SKU002', name: '机械键盘 RGB版', price: 459.00, icon: '⌨️' },
+            { skuId: 'SKU003', name: '人体工学鼠标', price: 189.00, icon: '🖱️' },
+            { skuId: 'SKU004', name: '27寸 2K显示器', price: 1599.00, icon: '🖥️' },
+            { skuId: 'SKU005', name: '智能手表 Ultra', price: 2499.00, icon: '⌚' },
+            { skuId: 'SKU006', name: '便携音箱 Mini', price: 129.00, icon: '🔊' },
+        ];
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast toast-' + type + ' show';
+            setTimeout(() => {
+                toast.className = 'toast toast-' + type;
+            }, 2500);
+        }
+
+        function initSDK() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const tenantId = document.getElementById('tenantId').value;
+            const bizType = document.getElementById('bizType').value;
+            const userId = document.getElementById('userId').value;
+
+            sdk = CartHubSDK.create({
+                baseUrl, tenantId, bizType, userId,
+                source: 'web', debug: true
+            });
+
+            showToast('SDK 初始化成功!', 'success');
+            loadCart();
+            loadMyCheckouts();
+        }
+
+        async function addSampleItems() {
+            if (!sdk) return showToast('请先初始化SDK', 'warning');
+            try {
+                for (const p of products.slice(0, 3)) {
+                    try {
+                        await sdk.addItem({ skuId: p.skuId, unitPrice: p.price, quantity: 1, itemName: p.name });
+                    } catch (e) {
+                    }
+                }
+                showToast('示例商品已添加', 'success');
+                loadCart();
+            } catch (e) {
+                showToast('添加失败: ' + e.message, 'error');
+            }
+        }
+
+        async function loadCart() {
+            if (!sdk) return;
+            try {
+                const cart = await sdk.getCart(false);
+                currentCart = cart;
+                renderCartItems(cart);
+                updateCartSummary(cart);
+            } catch (e) {
+                showToast('加载购物车失败: ' + e.message, 'error');
+            }
+        }
+
+        function renderCartItems(cart) {
+            const container = document.getElementById('cartItems');
+            if (!cart || !cart.items || cart.items.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🛒</div>
+                        <p>购物车是空的</p>
+                    </div>`;
+                return;
+            }
+
+            const productMap = {};
+            products.forEach(p => productMap[p.skuId] = p);
+
+            container.innerHTML = cart.items.map(item => {
+                const p = productMap[item.skuId] || { icon: '📦', name: item.itemName || item.skuId };
+                const selected = item.selected ? 'checked' : '';
+                return `
+                    <li class="cart-item">
+                        <input type="checkbox" class="item-checkbox" ${selected} 
+                               onchange="toggleItemSelect('${item.skuId}')" 
+                               ${!item.onShelf || item.invalidMessage ? 'disabled' : ''}>
+                        <div class="item-image">${p.icon}</div>
+                        <div class="item-info">
+                            <div class="item-name">${p.name || item.itemName}</div>
+                            <div class="item-spec">SKU: ${item.skuId} ${item.priceChanged ? '<span class="tag tag-danger">价格变动</span>' : ''}</div>
+                            <div class="item-price">¥${item.unitPrice}</div>
+                        </div>
+                        <div class="item-qty">
+                            <button class="qty-btn" onclick="changeQty('${item.skuId}', -1)">-</button>
+                            <span class="qty-num">${item.quantity}</span>
+                            <button class="qty-btn" onclick="changeQty('${item.skuId}', 1)">+</button>
+                        </div>
+                        <div class="item-subtotal">¥${item.subtotal || item.unitPrice * item.quantity}</div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        function updateCartSummary(cart) {
+            const selectedItems = (cart.items || []).filter(i => i.selected);
+            const selectedCount = selectedItems.reduce((sum, i) => sum + (i.quantity || 0), 0);
+            let totalAmount = 0;
+            selectedItems.forEach(i => {
+                const subtotal = i.subtotal || (i.unitPrice * i.quantity);
+                totalAmount += parseFloat(subtotal);
+            });
+
+            document.getElementById('cartCountTag').textContent = (cart.itemCount || 0) + ' 件商品';
+            document.getElementById('selectedCount').textContent = selectedCount;
+            document.getElementById('totalAmount').textContent = totalAmount.toFixed(2);
+
+            const selectAll = document.getElementById('selectAll');
+            if (cart.items && cart.items.length > 0) {
+                selectAll.checked = selectedItems.length === cart.items.length;
+            } else {
+                selectAll.checked = false;
+            }
+        }
+
+        async function toggleItemSelect(skuId) {
+            if (!sdk || !currentCart) return;
+            const item = currentCart.items.find(i => i.skuId === skuId);
+            if (!item) return;
+
+            try {
+                item.selected = !item.selected;
+                await sdk.updateItem({ skuId, selected: item.selected });
+                updateCartSummary(currentCart);
+            } catch (e) {
+                showToast('操作失败: ' + e.message, 'error');
+                loadCart();
+            }
+        }
+
+        async function toggleSelectAll() {
+            if (!sdk || !currentCart || !currentCart.items) return;
+            const selectAll = document.getElementById('selectAll');
+            const selected = selectAll.checked;
+
+            try {
+                for (const item of currentCart.items) {
+                    if (!item.onShelf || item.invalidMessage) continue;
+                    if (item.selected !== selected) {
+                        await sdk.updateItem({ skuId: item.skuId, selected });
+                        item.selected = selected;
+                    }
+                }
+                updateCartSummary(currentCart);
+            } catch (e) {
+                showToast('操作失败: ' + e.message, 'error');
+                loadCart();
+            }
+        }
+
+        async function changeQty(skuId, delta) {
+            if (!sdk) return;
+            try {
+                await sdk.incrementQuantity(skuId, delta);
+                loadCart();
+            } catch (e) {
+                showToast('操作失败: ' + e.message, 'error');
+            }
+        }
+
+        async function goCheckout() {
+            if (!sdk) return showToast('请先初始化SDK', 'warning');
+
+            const selectedItems = (currentCart?.items || []).filter(i => i.selected);
+            if (selectedItems.length === 0) {
+                return showToast('请先选择要结算的商品', 'warning');
+            }
+
+            const hasInvalid = selectedItems.some(i => !i.onShelf || i.invalidMessage);
+            if (hasInvalid) {
+                return showToast('购物车包含无效商品，请先处理', 'error');
+            }
+
+            try {
+                const result = await createCheckout({
+                    skuIds: selectedItems.map(i => i.skuId)
+                });
+                currentCheckoutToken = result.checkoutToken;
+                showCheckoutPage(result);
+                showToast('结算快照已创建，库存已锁定', 'success');
+            } catch (e) {
+                showToast('结算失败: ' + e.message, 'error');
+            }
+        }
+
+        function showCheckoutPage(checkoutData) {
+            document.getElementById('cartPage').classList.remove('active');
+            document.getElementById('checkoutPage').classList.add('active');
+            renderCheckoutDetail(checkoutData);
+            startCountdown(checkoutData.expireSeconds);
+            document.getElementById('checkoutToken').textContent = checkoutData.checkoutToken;
+            updateStockStatus(checkoutData.stockStatus);
+        }
+
+        function backToCart() {
+            document.getElementById('checkoutPage').classList.remove('active');
+            document.getElementById('cartPage').classList.add('active');
+            stopCountdown();
+            currentCheckoutToken = null;
+            loadCart();
+            loadMyCheckouts();
+        }
+
+        function renderCheckoutDetail(data) {
+            const cart = data.cartSnapshot || {};
+            const items = cart.items || [];
+
+            const productMap = {};
+            products.forEach(p => productMap[p.skuId] = p);
+
+            const itemsHtml = items.map(item => {
+                const p = productMap[item.skuId] || { icon: '📦', name: item.itemName || item.skuId };
+                return `
+                    <div class="checkout-item">
+                        <div class="checkout-item-img">${p.icon}</div>
+                        <div class="checkout-item-info">
+                            <div class="checkout-item-name">${p.name || item.itemName}</div>
+                            <div class="checkout-item-price">¥${item.unitPrice}</div>
+                        </div>
+                        <div class="checkout-item-qty">x ${item.quantity}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('checkoutItems').innerHTML = itemsHtml || '<p style="color:#909399;">暂无商品</p>';
+
+            document.getElementById('sumTotalAmount').textContent = '¥' + (data.totalAmount || '0.00');
+            document.getElementById('sumDiscount').textContent = '-¥' + (data.discountAmount || '0.00');
+            document.getElementById('sumPayAmount').textContent = '¥' + (data.payAmount || data.totalAmount || '0.00');
+        }
+
+        function updateStockStatus(status) {
+            const el = document.getElementById('stockStatus');
+            if (status === 1) {
+                el.className = 'stock-status stock-success';
+                el.innerHTML = '<span class="stock-icon">✅</span><span>库存已预占锁定，请尽快完成下单</span>';
+            } else if (status === 2) {
+                el.className = 'stock-status stock-failed';
+                el.innerHTML = '<span class="stock-icon">❌</span><span>库存预占失败，部分商品可能库存不足</span>';
+            } else if (status === 3) {
+                el.className = 'stock-status stock-failed';
+                el.innerHTML = '<span class="stock-icon">🔓</span><span>库存已释放</span>';
+            } else {
+                el.className = 'stock-status stock-pending';
+                el.innerHTML = '<span class="stock-icon">⏳</span><span>库存预占中...</span>';
+            }
+        }
+
+        function startCountdown(seconds) {
+            stopCountdown();
+            let remaining = seconds || 900;
+
+            function updateDisplay() {
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                document.getElementById('countdownTime').textContent =
+                    String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+
+                if (remaining <= 60) {
+                    document.getElementById('countdownTime').classList.add('countdown-warning');
+                    document.getElementById('countdownBar').style.background = 'linear-gradient(135deg, #f5576c, #f093fb)';
+                }
+            }
+
+            updateDisplay();
+            countdownTimer = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    stopCountdown();
+                    onCheckoutExpired();
+                } else {
+                    updateDisplay();
+                }
+            }, 1000);
+        }
+
+        function stopCountdown() {
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+        }
+
+        function onCheckoutExpired() {
+            showToast('结算已过期，请重新结算', 'warning');
+            document.getElementById('countdownTime').textContent = '00:00';
+            document.getElementById('countdownTime').classList.add('countdown-warning');
+        }
+
+        async function refreshCheckout() {
+            if (!sdk || !currentCheckoutToken) return;
+            try {
+                const result = await refreshCheckoutApi(currentCheckoutToken);
+                currentCheckoutToken = result.checkoutToken;
+                startCountdown(result.expireSeconds);
+                showToast('结算已续期', 'success');
+            } catch (e) {
+                showToast('续期失败: ' + e.message, 'error');
+            }
+        }
+
+        async function cancelCheckout() {
+            if (!sdk || !currentCheckoutToken) return;
+            if (!confirm('确定取消本次结算吗？库存将被释放。')) return;
+
+            try {
+                await cancelCheckoutApi(currentCheckoutToken);
+                showToast('结算已取消，库存已释放', 'success');
+                backToCart();
+            } catch (e) {
+                showToast('取消失败: ' + e.message, 'error');
+            }
+        }
+
+        async function confirmOrder() {
+            if (!sdk || !currentCheckoutToken) return;
+            if (!confirm('确认提交订单吗？')) return;
+
+            try {
+                const orderNo = 'ORD' + Date.now();
+                const result = await confirmCheckoutApi({
+                    checkoutToken: currentCheckoutToken,
+                    orderNo: orderNo
+                });
+                showToast('下单成功！订单号：' + orderNo, 'success');
+                updateStockStatus(3);
+                stopCountdown();
+                setTimeout(() => {
+                    backToCart();
+                }, 1500);
+            } catch (e) {
+                showToast('下单失败: ' + e.message, 'error');
+            }
+        }
+
+        async function loadMyCheckouts() {
+            if (!sdk) return;
+            try {
+                const list = await listCheckoutsApi();
+                renderCheckoutList(list);
+            } catch (e) {
+            }
+        }
+
+        function renderCheckoutList(list) {
+            const container = document.getElementById('checkoutList');
+            if (!list || list.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>暂无结算记录</p>
+                    </div>`;
+                return;
+            }
+
+            const statusMap = {
+                0: { text: '待确认', class: 'tag-warning' },
+                1: { text: '已下单', class: 'tag-success' },
+                2: { text: '已取消', class: 'tag-danger' },
+                3: { text: '已过期', class: 'tag-danger' }
+            };
+
+            container.innerHTML = list.map(item => {
+                const status = statusMap[item.status] || { text: '未知', class: '' };
+                const createTime = item.createTime ? new Date(item.createTime).toLocaleString() : '-';
+                return `
+                    <li class="checkout-list-item" onclick="viewCheckout('${item.checkoutToken}')">
+                        <div class="checkout-list-header">
+                            <span class="checkout-list-token">${item.checkoutToken}</span>
+                            <span class="tag ${status.class}">${status.text}</span>
+                        </div>
+                        <div class="checkout-list-info">
+                            <span>${item.itemCount || 0} 件商品</span>
+                            <span class="checkout-list-amount">¥${item.payAmount || '0.00'}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #909399; margin-top: 6px;">
+                            创建时间：${createTime}
+                            ${item.orderNo ? ' | 订单号：' + item.orderNo : ''}
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        async function viewCheckout(token) {
+            if (!sdk) return;
+            try {
+                const result = await getCheckoutApi(token);
+                currentCheckoutToken = token;
+                showCheckoutPage(result);
+            } catch (e) {
+                showToast('获取详情失败: ' + e.message, 'error');
+            }
+        }
+
+        async function createCheckout(data) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const response = await fetch(baseUrl + '/api/checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                },
+                body: JSON.stringify(data || {})
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '创建结算失败');
+            }
+            return result.data;
+        }
+
+        async function getCheckoutApi(token) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const response = await fetch(baseUrl + '/api/checkout/' + token, {
+                headers: {
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                }
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '获取结算失败');
+            }
+            return result.data;
+        }
+
+        async function confirmCheckoutApi(data) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const response = await fetch(baseUrl + '/api/checkout/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '确认失败');
+            }
+            return result.data;
+        }
+
+        async function cancelCheckoutApi(token) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const response = await fetch(baseUrl + '/api/checkout/cancel/' + token, {
+                method: 'POST',
+                headers: {
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                }
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '取消失败');
+            }
+            return result.data;
+        }
+
+        async function refreshCheckoutApi(token) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const response = await fetch(baseUrl + '/api/checkout/refresh/' + token, {
+                method: 'POST',
+                headers: {
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                }
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '续期失败');
+            }
+            return result.data;
+        }
+
+        async function listCheckoutsApi(status) {
+            const baseUrl = document.getElementById('baseUrl').value;
+            let url = baseUrl + '/api/checkout/list';
+            if (status !== undefined) {
+                url += '?status=' + status;
+            }
+            const response = await fetch(url, {
+                headers: {
+                    'X-Tenant-Id': document.getElementById('tenantId').value,
+                    'X-Biz-Type': document.getElementById('bizType').value,
+                    'X-User-Id': document.getElementById('userId').value,
+                    'X-Source': 'web'
+                }
+            });
+            const result = await response.json();
+            if (result.code !== 200) {
+                throw new Error(result.message || '获取列表失败');
+            }
+            return result.data;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+        });
+    </script>
+</body>
+</html>

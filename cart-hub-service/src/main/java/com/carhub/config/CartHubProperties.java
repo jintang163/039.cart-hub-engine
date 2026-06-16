@@ -22,6 +22,7 @@ public class CartHubProperties {
     private Recommend recommend = new Recommend();
     private Remark remark = new Remark();
     private Share share = new Share();
+    private Checkout checkout = new Checkout();
 
     @Data
     public static class Redis {
@@ -96,6 +97,17 @@ public class CartHubProperties {
         private String baseUrl = "https://example.com/cart/share";
         private String qrCodeApi = "https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=";
         private Boolean enableQrCode = true;
+    }
+
+    @Data
+    public static class Checkout {
+        private Integer expireMinutes = 15;
+        private String stockLockUrl;
+        private String stockReleaseUrl;
+        private Integer stockTimeoutMs = 3000;
+        private Boolean enableStockLock = false;
+        private Integer maxConcurrentPerUser = 3;
+        private String notifyUrl;
     }
 
     @Bean

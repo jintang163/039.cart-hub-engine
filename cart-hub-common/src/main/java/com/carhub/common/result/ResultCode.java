@@ -35,7 +35,17 @@ public enum ResultCode {
     REMARK_CONTAIN_SENSITIVE_WORD(4002, "商品备注包含敏感词"),
 
     SORT_SKU_LIST_INVALID(5001, "排序商品列表无效"),
-    SORT_SKU_NOT_IN_CART(5002, "排序商品不在购物车中");
+    SORT_SKU_NOT_IN_CART(5002, "排序商品不在购物车中"),
+
+    CHECKOUT_TOKEN_INVALID(6001, "结算Token无效或已过期"),
+    CHECKOUT_STOCK_LOCK_FAILED(6002, "库存预占失败"),
+    CHECKOUT_STOCK_NOT_ENOUGH(6003, "商品库存不足"),
+    CHECKOUT_CART_EMPTY(6004, "购物车中没有可结算商品"),
+    CHECKOUT_HAS_INVALID_ITEM(6005, "购物车包含无效商品，请先处理"),
+    CHECKOUT_PRICE_CHANGED(6006, "商品价格已变动，请重新确认"),
+    CHECKOUT_ALREADY_CONFIRMED(6007, "结算已确认，请勿重复操作"),
+    CHECKOUT_ALREADY_CANCELED(6008, "结算已取消"),
+    CHECKOUT_EXPIRED(6009, "结算已过期，请重新结算");
 
     private final Integer code;
     private final String message;

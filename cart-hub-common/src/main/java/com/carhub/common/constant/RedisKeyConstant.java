@@ -70,6 +70,24 @@ public class RedisKeyConstant {
         return String.format(CART_RECOMMEND_LOCK, tenantId, bizType);
     }
 
+    public static final String CART_CHECKOUT_KEY = CART_PREFIX + "checkout:{%s}";
+
+    public static final String CART_CHECKOUT_LOCK = CART_PREFIX + "checkout:lock:{%s}";
+
+    public static final String CART_CHECKOUT_USER_KEY = CART_PREFIX + "checkout:user:{%s}:{%s}:{%s}";
+
+    public static String buildCheckoutKey(String checkoutToken) {
+        return String.format(CART_CHECKOUT_KEY, checkoutToken);
+    }
+
+    public static String buildCheckoutLockKey(String checkoutToken) {
+        return String.format(CART_CHECKOUT_LOCK, checkoutToken);
+    }
+
+    public static String buildCheckoutUserKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_CHECKOUT_USER_KEY, tenantId, bizType, userId);
+    }
+
     public static String buildSkuCoOccurrenceKey(String tenantId, String bizType) {
         return String.format(SKU_CO_OCCURRENCE_KEY, tenantId, bizType);
     }
