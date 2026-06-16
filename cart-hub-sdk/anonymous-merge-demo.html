@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>购物车匿名合并 · 最佳实践 Demo</title>
+    <script src="./cart-hub-sdk.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f6fa;
+            color: #2c3e50;
+            padding: 24px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { margin: 0 0 8px; font-size: 24px; }
+        .subtitle { color: #7f8c8d; margin-bottom: 24px; font-size: 14px; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 16px 20px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            margin-bottom: 20px;
+        }
+        .status-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #e74c3c;
+        }
+        .status-dot.logged { background: #27ae60; }
+        .status-label { color: #7f8c8d; }
+        .status-value { font-weight: 600; }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: #fff; }
+        .btn-success:hover { background: #229954; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-secondary { background: #ecf0f1; color: #2c3e50; }
+        .btn-secondary:hover { background: #d5dbdb; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            background: #ecf0f1;
+            color: #7f8c8d;
+        }
+        .badge.local { background: #fdf2e9; color: #e67e22; }
+        .badge.server { background: #eafaf1; color: #27ae60; }
+
+        .product-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+        .product-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+        }
+        .product-img {
+            width: 56px; height: 56px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 20px; flex-shrink: 0;
+        }
+        .product-info { flex: 1; min-width: 0; }
+        .product-name { font-weight: 500; margin-bottom: 4px; }
+        .product-meta { font-size: 12px; color: #95a5a6; }
+        .product-price { color: #e74c3c; font-weight: 600; }
+        .add-btn {
+            padding: 6px 14px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .add-btn:hover { background: #2980b9; }
+
+        .cart-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .cart-item-img {
+            width: 44px; height: 44px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 16px;
+        }
+        .cart-item-info { flex: 1; min-width: 0; }
+        .cart-item-name { font-size: 13px; margin-bottom: 2px; }
+        .cart-item-meta { font-size: 11px; color: #95a5a6; }
+        .qty-control { display: flex; align-items: center; gap: 8px; }
+        .qty-btn {
+            width: 26px; height: 26px;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .qty-btn:hover { background: #ecf0f1; }
+        .qty-num { min-width: 24px; text-align: center; font-weight: 500; }
+        .remove-btn {
+            padding: 4px 10px;
+            background: #fee;
+            color: #e74c3c;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .cart-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #bdc3c7;
+            font-size: 14px;
+        }
+        .cart-summary {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fdfdfd;
+            border-radius: 8px;
+            border: 1px dashed #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        .cart-summary strong { color: #e74c3c; font-size: 15px; }
+
+        .event-log {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            max-height: 280px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .event-log .log-item { padding: 3px 0; border-bottom: 1px solid #313244; }
+        .event-log .log-time { color: #6c7086; margin-right: 6px; }
+        .event-log .log-event { color: #89b4fa; }
+        .event-log .log-event.local { color: #fab387; }
+        .event-log .log-event.server { color: #a6e3a1; }
+        .event-log .log-event.merge { color: #f9e2af; font-weight: bold; }
+        .event-log .log-event.error { color: #f38ba8; }
+
+        .info-block {
+            padding: 12px 16px;
+            background: #eaf4fd;
+            border-left: 3px solid #3498db;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+        .info-block code {
+            background: rgba(52, 152, 219, 0.15);
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .merge-toast {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            background: #27ae60;
+            color: #fff;
+            padding: 14px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 999;
+            max-width: 320px;
+        }
+        .merge-toast.show { transform: translateX(0); }
+        .merge-toast.error { background: #e74c3c; }
+        .merge-toast-title { font-weight: 600; margin-bottom: 4px; }
+        .merge-toast-desc { font-size: 12px; opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 无登录购物车 · 匿名合并最佳实践</h1>
+        <div class="subtitle">未登录购物车存 localStorage → 登录后自动合并到服务器，数量累加 + 有效期取最新</div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="loginDot"></div>
+                <span class="status-label">登录状态：</span>
+                <span class="status-value" id="loginStatus">未登录</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">当前用户：</span>
+                <span class="status-value" id="currentUser">anonymous</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">本地商品：</span>
+                <span class="status-value" id="localCount">0 件</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">模式：</span>
+                <span class="status-value"><span class="badge local" id="modeBadge">本地 localStorage</span></span>
+            </div>
+            <div style="flex:1"></div>
+            <button class="btn btn-success" onclick="login()">🔐 模拟登录</button>
+            <button class="btn btn-secondary" onclick="logout()">↩️ 退出登录</button>
+            <button class="btn btn-danger" onclick="clearAll()">🗑️ 清空全部</button>
+        </div>
+
+        <div class="grid">
+            <div>
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">
+                        <span>🛍️ 模拟商品列表</span>
+                        <span class="badge">点击加入购物车</span>
+                    </div>
+                    <div class="product-list" id="productList"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <span>📋 购物车</span>
+                        <span class="badge" id="cartBadge">本地 localStorage</span>
+                    </div>
+                    <div id="cartList"></div>
+                    <div class="cart-summary" id="cartSummary" style="display:none">
+                        <div>共 <span id="summaryQty">0</span> 件商品</div>
+                        <div>合计：<strong id="summaryAmount">¥0.00</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title"><span>📖 使用说明</span></div>
+                    <div class="info-block">
+                        1️⃣ <b>未登录阶段</b>：所有购物车操作走 <code>localStorage</code>，
+                        SDK 自动分配永久匿名 ID（<code>anon_xxx</code>）
+                    </div>
+                    <div class="info-block">
+                        2️⃣ <b>登录时自动合并</b>：调用 <code>sdk.setUserId(userId)</code>，
+                        检测到从「匿名→已登录」且本地有商品时 <b>自动触发合并</b>
+                    </div>
+                    <div class="info-block">
+                        3️⃣ <b>合并规则</b>：<br/>
+                        • 商品数量：相同 SKU <b>累加</b><br/>
+                        • 有效期：<code>max(服务器 lastAccessTime, 匿名端 max(addTime))</code> 取最新
+                    </div>
+                    <div class="info-block">
+                        4️⃣ <b>合并事件</b>：可监听 <code>merged</code> / <code>mergeFailed</code> / <code>userChanged</code>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <span>📝 事件日志</span>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="clearLog()">清空</button>
+                    </div>
+                    <div class="event-log" id="eventLog"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="merge-toast" id="mergeToast">
+        <div class="merge-toast-title" id="toastTitle"></div>
+        <div class="merge-toast-desc" id="toastDesc"></div>
+    </div>
+
+    <script>
+        const MOCK_PRODUCTS = [
+            { skuId: 'SKU001', spuId: 'SPU001', name: 'iPhone 15 Pro Max 256G', price: 9999, icon: '📱', category: '手机数码' },
+            { skuId: 'SKU002', spuId: 'SPU002', name: 'AirPods Pro 2 蓝牙耳机', price: 1899, icon: '🎧', category: '手机数码' },
+            { skuId: 'SKU003', spuId: 'SPU003', name: 'Nike Air Max 运动鞋', price: 899, icon: '👟', category: '服饰鞋包' },
+            { skuId: 'SKU004', spuId: 'SPU004', name: '三只松鼠坚果大礼包', price: 129, icon: '🥜', category: '食品生鲜' },
+            { skuId: 'SKU005', spuId: 'SPU005', name: '戴森 V15 无线吸尘器', price: 4999, icon: '🧹', category: '家用电器' },
+            { skuId: 'SKU006', spuId: 'SPU006', name: '乐高哈利波特城堡 71043', price: 2999, icon: '🧱', category: '玩具乐器' }
+        ];
+
+        const sdk = new CartHubSDK({
+            baseUrl: 'http://localhost:8080',
+            tenantId: 'demo',
+            bizType: 'ecommerce',
+            debug: true
+        });
+
+        let demoLoggedIn = false;
+        const DEMO_USER_ID = 'user_demo_10086';
+
+        function renderProducts() {
+            const html = MOCK_PRODUCTS.map(p => `
+                <div class="product-item">
+                    <div class="product-img">${p.icon}</div>
+                    <div class="product-info">
+                        <div class="product-name">${p.name}</div>
+                        <div class="product-meta">${p.category} · ${p.skuId}</div>
+                    </div>
+                    <div class="product-price">¥${p.price.toFixed(2)}</div>
+                    <button class="add-btn" onclick="addToCart('${p.skuId}')">加购</button>
+                </div>
+            `).join('');
+            document.getElementById('productList').innerHTML = html;
+        }
+
+        async function addToCart(skuId) {
+            const p = MOCK_PRODUCTS.find(x => x.skuId === skuId);
+            await sdk.addItem({
+                skuId: p.skuId,
+                spuId: p.spuId,
+                categoryId: 'cat_' + p.category,
+                itemName: p.name,
+                itemImage: p.icon,
+                unitPrice: p.price,
+                originalPrice: p.price * 1.1,
+                quantity: 1,
+                addSource: 'demo_page'
+            });
+            renderCart();
+        }
+
+        async function changeQty(skuId, delta) {
+            try {
+                await sdk.incrementQuantity(skuId, delta);
+                renderCart();
+            } catch (e) {
+                logEvent('error', '操作失败: ' + e.message);
+            }
+        }
+
+        async function removeItem(skuId) {
+            await sdk.removeItem(skuId);
+            renderCart();
+        }
+
+        async function renderCart() {
+            let cart;
+            try {
+                cart = await sdk.getCart(false);
+            } catch (e) {
+                cart = sdk.getLocalCart();
+                cart.local = true;
+            }
+            const items = cart.items || [];
+            const isLocal = cart.local === true || !demoLoggedIn;
+
+            document.getElementById('modeBadge').textContent = isLocal ? '本地 localStorage' : '服务器购物车';
+            document.getElementById('modeBadge').className = 'badge ' + (isLocal ? 'local' : 'server');
+            document.getElementById('cartBadge').textContent = isLocal ? '本地 localStorage' : '服务器购物车';
+            document.getElementById('cartBadge').className = 'badge ' + (isLocal ? 'local' : 'server');
+
+            const localItems = sdk.getLocalCart().items || [];
+            document.getElementById('localCount').textContent = localItems.length + ' 件';
+
+            if (items.length === 0) {
+                document.getElementById('cartList').innerHTML =
+                    '<div class="cart-empty">🛒 购物车是空的，去逛逛吧～</div>';
+                document.getElementById('cartSummary').style.display = 'none';
+                return;
+            }
+
+            const html = items.map(it => {
+                const p = MOCK_PRODUCTS.find(x => x.skuId === it.skuId);
+                const icon = p ? p.icon : (it.itemImage || '📦');
+                const name = it.itemName || (p ? p.name : it.skuId);
+                const price = it.unitPrice || 0;
+                const qty = it.quantity || 0;
+                return `
+                    <div class="cart-item">
+                        <div class="cart-item-img">${icon}</div>
+                        <div class="cart-item-info">
+                            <div class="cart-item-name">${name}</div>
+                            <div class="cart-item-meta">${it.skuId} · ¥${Number(price).toFixed(2)}</div>
+                        </div>
+                        <div class="qty-control">
+                            <button class="qty-btn" onclick="changeQty('${it.skuId}', -1)">-</button>
+                            <span class="qty-num">${qty}</span>
+                            <button class="qty-btn" onclick="changeQty('${it.skuId}', 1)">+</button>
+                        </div>
+                        <button class="remove-btn" onclick="removeItem('${it.skuId}')">移除</button>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('cartList').innerHTML = html;
+
+            let totalQty = 0, totalAmount = 0;
+            items.forEach(it => {
+                totalQty += (it.quantity || 0);
+                totalAmount += (it.unitPrice || 0) * (it.quantity || 0);
+            });
+            document.getElementById('cartSummary').style.display = 'flex';
+            document.getElementById('summaryQty').textContent = totalQty;
+            document.getElementById('summaryAmount').textContent = '¥' + Number(totalAmount).toFixed(2);
+        }
+
+        function updateLoginStatus() {
+            document.getElementById('loginDot').className = 'status-dot ' + (demoLoggedIn ? 'logged' : '');
+            document.getElementById('loginStatus').textContent = demoLoggedIn ? '已登录' : '未登录';
+            document.getElementById('currentUser').textContent = demoLoggedIn ? DEMO_USER_ID : sdk._anonymousId;
+        }
+
+        async function login() {
+            if (demoLoggedIn) {
+                logEvent('local', '用户已登录，无需重复操作');
+                return;
+            }
+            const localCart = sdk.getLocalCart();
+            const preItemCount = localCart.items.length;
+
+            logEvent('merge', `🚀 触发登录，本地有 ${preItemCount} 件商品，开始自动合并...`);
+
+            try {
+                demoLoggedIn = true;
+                updateLoginStatus();
+                sdk.setToken('mock_token_demo');
+
+                const mergeResult = await sdk.setUserId(DEMO_USER_ID);
+
+                if (mergeResult) {
+                    showToast(true, `合并成功！${preItemCount} 件商品已合并至服务器`);
+                    logEvent('merge', `✅ 合并成功，共合并 ${preItemCount} 件商品，已自动清空本地`);
+                } else if (preItemCount === 0) {
+                    showToast(true, '登录成功（本地无商品需合并）', true);
+                    logEvent('server', '✅ 登录成功，本地无商品需合并');
+                }
+            } catch (e) {
+                demoLoggedIn = false;
+                updateLoginStatus();
+                showToast(false, '合并失败：' + (e.message || '未知错误'));
+                logEvent('error', '❌ 合并失败: ' + (e.message || JSON.stringify(e)));
+            }
+            renderCart();
+        }
+
+        function logout() {
+            if (!demoLoggedIn) return;
+            demoLoggedIn = false;
+            sdk.setUserId(null);
+            sdk.setToken(null);
+            updateLoginStatus();
+            logEvent('local', '↩️ 已退出登录，后续操作将使用本地购物车');
+            renderCart();
+        }
+
+        function clearAll() {
+            if (confirm('确认清空本地购物车吗？')) {
+                sdk.clearLocalCart();
+                renderCart();
+                logEvent('error', '🗑️ 已清空本地购物车');
+            }
+        }
+
+        function showToast(success, desc, simple) {
+            const toast = document.getElementById('mergeToast');
+            const title = document.getElementById('toastTitle');
+            const d = document.getElementById('toastDesc');
+            toast.className = 'merge-toast' + (success ? '' : ' error') + ' show';
+            title.textContent = simple ? '✅ 登录成功' : (success ? '🎉 购物车合并成功' : '❌ 合并失败');
+            d.textContent = desc;
+            setTimeout(() => { toast.className = 'merge-toast' + (success ? '' : ' error'); }, 3500);
+        }
+
+        function logEvent(type, msg) {
+            const log = document.getElementById('eventLog');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const div = document.createElement('div');
+            div.className = 'log-item';
+            const typeLabel = {
+                local: '[本地]',
+                server: '[服务器]',
+                merge: '[合并]',
+                error: '[错误]'
+            }[type] || '[事件]';
+            div.innerHTML = `<span class="log-time">${time}</span><span class="log-event ${type}">${typeLabel}</span> ${msg}`;
+            log.insertBefore(div, log.firstChild);
+            while (log.children.length > 100) log.removeChild(log.lastChild);
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        sdk.on('userChanged', (e) => {
+            logEvent(e.nowLoggedIn ? 'server' : 'local',
+                `用户状态变更: ${e.oldUserId || 'null'} → ${e.newUserId || 'null'}`
+                + ` (${e.wasLoggedIn ? '已' : '未'}登录 → ${e.nowLoggedIn ? '已' : '未'}登录)`);
+        });
+
+        sdk.on('merged', (e) => {
+            logEvent('merge', `📦 合并事件: source=${e.sourceUserId}, `
+                + `items=${e.itemsMerged}, auto=${e.autoTrigger}, clearLocal=${e.clearLocal}`);
+        });
+
+        sdk.on('mergeFailed', (e) => {
+            logEvent('error', `❌ 自动合并失败: ${e.error && e.error.message ? e.error.message : JSON.stringify(e.error)}`);
+        });
+
+        sdk.on('localChanged', () => {
+            renderCart();
+        });
+
+        sdk.on('cartChanged', () => {
+            renderCart();
+        });
+
+        renderProducts();
+        renderCart();
+        updateLoginStatus();
+        logEvent('local', `🚀 Demo 初始化完成，匿名ID: ${sdk._anonymousId}`);
+        logEvent('local', '💡 第一步：先在未登录状态下，点击「加购」几个商品～');
+        logEvent('local', '💡 第二步：点击「模拟登录」观察自动合并流程');
+    </script>
+</body>
+</html>

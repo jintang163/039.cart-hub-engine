@@ -349,9 +349,25 @@ public class CartRedisStorage {
     }
 
     public void updateLastAccessTime(String tenantId, String bizType, String userId) {
+        updateLastAccessTime(tenantId, bizType, userId, null);
+    }
+
+    public void updateLastAccessTime(String tenantId, String bizType, String userId, Long candidateTs) {
         String key = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, userId);
         int expireSeconds = resolveCartExpireSeconds(tenantId, bizType);
-        stringRedisTemplate.opsForValue().set(key, String.valueOf(System.currentTimeMillis()),
+        long now = System.currentTimeMillis();
+        long finalTs = now;
+        if (candidateTs != null && candidateTs > now) {
+            finalTs = candidateTs;
+        } else if (candidateTs != null) {
+            String current = stringRedisTemplate.opsForValue().get(key);
+            long existingTs = 0;
+            if (StringUtils.isNotBlank(current)) {
+                try { existingTs = Long.parseLong(current); } catch (NumberFormatException ignored) {}
+            }
+            finalTs = Math.max(Math.max(now, candidateTs), existingTs);
+        }
+        stringRedisTemplate.opsForValue().set(key, String.valueOf(finalTs),
                 Duration.ofSeconds(expireSeconds));
     }
 

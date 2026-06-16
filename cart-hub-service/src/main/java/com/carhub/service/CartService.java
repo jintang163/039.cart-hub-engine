@@ -474,13 +474,22 @@ public class CartService {
             cartStatisticsService.recordAdd(tenantId, bizType, userId, mergedQty, mergedAmount);
         }
 
+        if (dto.getAnonymousLastAccessTime() != null) {
+            cartRedisStorage.updateLastAccessTime(tenantId, bizType, userId, dto.getAnonymousLastAccessTime());
+        } else {
+            cartRedisStorage.updateLastAccessTime(tenantId, bizType, userId);
+        }
+
         cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_MERGE,
-                null, null, null, null, null, "merged " + mergedCount + " items");
+                null, null, null, null, null,
+                "merged " + mergedCount + " items, source=" + dto.getSourceUserId()
+                        + (dto.getAnonymousLastAccessTime() != null ?
+                        ", anonymousLastAccess=" + dto.getAnonymousLastAccessTime() : ""));
 
         asyncSyncDb(tenantId, bizType, userId);
         recalculateDiscountIfNeeded(tenantId, bizType, userId);
-        log.info("mergeCart success: tenantId={}, bizType={}, userId={}, mergedCount={}",
-                tenantId, bizType, userId, mergedCount);
+        log.info("mergeCart success: tenantId={}, bizType={}, userId={}, mergedCount={}, sourceUserId={}, anonymousLastAccess={}",
+                tenantId, bizType, userId, mergedCount, dto.getSourceUserId(), dto.getAnonymousLastAccessTime());
         return getCartSimple();
     }
 

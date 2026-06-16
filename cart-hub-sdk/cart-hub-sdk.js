@@ -81,11 +81,43 @@
             return this.userId || this._anonymousId;
         }
 
+        isLoggedIn() {
+            return !!this.userId;
+        }
+
+        _getLocalMaxAddTime() {
+            const items = this._localCache.items || [];
+            if (!items.length) return Date.now();
+            let max = 0;
+            items.forEach(it => {
+                const t = it.addTime || 0;
+                if (t > max) max = t;
+            });
+            return max || Date.now();
+        }
+
         setUserId(userId) {
             const oldUserId = this.userId;
+            const wasLoggedIn = !!oldUserId;
             this.userId = userId;
-            this._log('setUserId', { oldUserId, newUserId: userId });
-            this._emit('userChanged', { oldUserId, newUserId: userId });
+            const nowLoggedIn = !!userId;
+            this._log('setUserId', { oldUserId, newUserId: userId, wasLoggedIn, nowLoggedIn });
+            this._emit('userChanged', { oldUserId, newUserId: userId, wasLoggedIn, nowLoggedIn });
+            let mergePromise = Promise.resolve(null);
+            if (!wasLoggedIn && nowLoggedIn && this._localCache.items && this._localCache.items.length > 0) {
+                this._log('setUserId trigger anonymous merge, items:', this._localCache.items.length);
+                const localSnapshot = JSON.parse(JSON.stringify(this._localCache.items));
+                mergePromise = this.mergeCart({
+                    items: localSnapshot,
+                    clearLocalAfterMerge: true,
+                    _autoTrigger: true
+                }).catch(err => {
+                    this._log('auto merge failed', err);
+                    this._emit('mergeFailed', { error: err, items: localSnapshot });
+                    return null;
+                });
+            }
+            return mergePromise;
         }
 
         setToken(token) {
@@ -224,6 +256,12 @@
         }
 
         async addItem(item) {
+            if (!this.isLoggedIn()) {
+                const localCart = this.addLocalItem(item);
+                this._emit('itemAdded', { item, result: localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const result = await this._request('/api/cart/item', {
                 method: 'POST',
                 body: item
@@ -234,6 +272,13 @@
         }
 
         async updateItem(item) {
+            if (!this.isLoggedIn()) {
+                if (!item || !item.skuId) throw new Error('skuId is required');
+                const localCart = this.updateLocalItem(item.skuId, item);
+                this._emit('itemUpdated', { item, result: localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const result = await this._request('/api/cart/item', {
                 method: 'PUT',
                 body: item
@@ -244,6 +289,15 @@
         }
 
         async incrementQuantity(skuId, delta = 1) {
+            if (!this.isLoggedIn()) {
+                const exist = this._localCache.items.find(i => i.skuId === skuId);
+                if (!exist) throw new Error('SKU not found in local cart');
+                const newQty = Math.max(1, (exist.quantity || 0) + delta);
+                const localCart = this.updateLocalItem(skuId, { quantity: newQty });
+                this._emit('quantityChanged', { skuId, delta, result: localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const qs = new URLSearchParams({ skuId, delta: String(delta) });
             const result = await this._request('/api/cart/item/quantity?' + qs.toString(), {
                 method: 'PATCH'
@@ -254,6 +308,12 @@
         }
 
         async removeItem(skuId) {
+            if (!this.isLoggedIn()) {
+                const localCart = this.removeLocalItem(skuId);
+                this._emit('itemRemoved', { skuId, result: localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const qs = new URLSearchParams({ skuId });
             const result = await this._request('/api/cart/item?' + qs.toString(), {
                 method: 'DELETE'
@@ -264,6 +324,15 @@
         }
 
         async batchRemove(skuIds) {
+            if (!this.isLoggedIn()) {
+                let localCart = this.getLocalCart();
+                (skuIds || []).forEach(id => {
+                    localCart = this.removeLocalItem(id);
+                });
+                this._emit('itemsBatchRemoved', { skuIds, result: localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const result = await this._request('/api/cart/items', {
                 method: 'DELETE',
                 body: { skuIds }
@@ -274,6 +343,12 @@
         }
 
         async clearCart() {
+            if (!this.isLoggedIn()) {
+                const localCart = this.clearLocalCart();
+                this._emit('cartCleared', { ...localCart, local: true });
+                this._emit('cartChanged', localCart);
+                return localCart;
+            }
             const result = await this._request('/api/cart/clear', { method: 'DELETE' });
             this._emit('cartCleared', result);
             this._emit('cartChanged', result);
@@ -281,6 +356,11 @@
         }
 
         async getCart(validate = true) {
+            if (!this.isLoggedIn()) {
+                const localCart = this.getLocalCart();
+                this._emit('cartLoaded', { ...localCart, local: true });
+                return { ...localCart, local: true };
+            }
             const qs = new URLSearchParams({ validate: String(validate) });
             const result = await this._request('/api/cart?' + qs.toString());
             this._emit('cartLoaded', result);
@@ -288,16 +368,41 @@
         }
 
         async getCartSimple() {
+            if (!this.isLoggedIn()) {
+                return this.getLocalCart();
+            }
             const result = await this._request('/api/cart/simple');
             this._emit('cartLoaded', result);
             return result;
         }
 
         async getItemCount() {
+            if (!this.isLoggedIn()) {
+                const items = this._localCache.items || [];
+                let totalQty = 0;
+                items.forEach(i => { totalQty += (i.quantity || 0); });
+                return { skuCount: items.length, totalQuantity: totalQty };
+            }
             return this._request('/api/cart/count');
         }
 
         async getCartSummary() {
+            if (!this.isLoggedIn()) {
+                const items = this._localCache.items || [];
+                let totalQty = 0;
+                let totalAmount = 0;
+                items.forEach(i => {
+                    const q = i.quantity || 0;
+                    totalQty += q;
+                    totalAmount += (i.unitPrice || 0) * q;
+                });
+                return {
+                    skuCount: items.length,
+                    totalQuantity: totalQty,
+                    totalAmount: Number(totalAmount.toFixed(2)),
+                    local: true
+                };
+            }
             return this._request('/api/cart/summary');
         }
 
@@ -346,18 +451,32 @@
         }
 
         async mergeCart(options = {}) {
-            const localItems = this._localCache.items;
-            const body = Object.assign({
-                items: localItems,
-                sourceUserId: this._anonymousId,
-                overwrite: false
-            }, options);
+            const autoTrigger = !!options._autoTrigger;
+            const clearLocal = options.clearLocalAfterMerge !== false;
+            const sourceItems = options.items && options.items.length
+                ? options.items
+                : this._localCache.items;
+            const body = {
+                items: sourceItems,
+                sourceUserId: options.sourceUserId || this._anonymousId,
+                overwrite: !!options.overwrite,
+                anonymousLastAccessTime: options.anonymousLastAccessTime || this._getLocalMaxAddTime()
+            };
             const result = await this._request('/api/cart/merge', {
                 method: 'POST',
                 body
             });
-            this.clearLocalCart();
-            this._emit('merged', result);
+            if (clearLocal) {
+                this.clearLocalCart();
+            }
+            this._emit('merged', {
+                cart: result,
+                autoTrigger,
+                sourceUserId: body.sourceUserId,
+                itemsMerged: sourceItems.length,
+                clearLocal
+            });
+            this._emit('cartChanged', result);
             return result;
         }
 

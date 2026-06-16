@@ -4,8 +4,9 @@ export declare class CartHubSDK {
     static create(options: CartHubOptions): CartHubSDK;
     static readonly VERSION: string;
 
-    setUserId(userId: string | null): void;
+    setUserId(userId: string | null): Promise<CartVO | null>;
     setToken(token: string | null): void;
+    isLoggedIn(): boolean;
 
     getLocalCart(): LocalCart;
     addLocalItem(item: CartItemInput): LocalCart;
@@ -13,17 +14,17 @@ export declare class CartHubSDK {
     updateLocalItem(skuId: string, updates: Partial<CartItemInput>): LocalCart;
     clearLocalCart(): LocalCart;
 
-    addItem(item: CartItemInput): Promise<boolean>;
-    updateItem(item: UpdateCartItemInput): Promise<boolean>;
-    incrementQuantity(skuId: string, delta?: number): Promise<number>;
-    removeItem(skuId: string): Promise<boolean>;
-    batchRemove(skuIds: string[]): Promise<number>;
-    clearCart(): Promise<boolean>;
+    addItem(item: CartItemInput): Promise<CartVO>;
+    updateItem(item: UpdateCartItemInput): Promise<CartVO>;
+    incrementQuantity(skuId: string, delta?: number): Promise<CartVO>;
+    removeItem(skuId: string): Promise<CartVO>;
+    batchRemove(skuIds: string[]): Promise<CartVO>;
+    clearCart(): Promise<CartVO>;
 
-    getCart(validate?: boolean): Promise<CartVO>;
-    getCartSimple(): Promise<CartVO>;
-    getItemCount(): Promise<number>;
-    getCartSummary(): Promise<CartSummary>;
+    getCart(validate?: boolean): Promise<CartVO | (LocalCart & { local: true })>;
+    getCartSimple(): Promise<CartVO | LocalCart>;
+    getItemCount(): Promise<{ skuCount: number; totalQuantity: number }>;
+    getCartSummary(): Promise<CartSummary & { local?: boolean }>;
     getExpireInfo(): Promise<CartExpireInfo>;
 
     subscribePriceDrop(skuId: string, targetPrice?: number): Promise<boolean>;
@@ -71,7 +72,9 @@ export declare class CartHubSDK {
     batchSort(sortItems: SortItem[]): Promise<number>;
     reorderCartBySkus(orderedSkuIds: string[]): Promise<number>;
 
+    on<K extends keyof CartHubEventMap>(event: K, callback: (data: CartHubEventMap[K]) => void): () => void;
     on(event: string, callback: (data: any) => void): () => void;
+    off<K extends keyof CartHubEventMap>(event: K, callback: (data: CartHubEventMap[K]) => void): void;
     off(event: string, callback: (data: any) => void): void;
 
     onBeforeRequest?: () => Record<string, string>;
@@ -123,6 +126,10 @@ export interface UpdateCartItemInput {
 export interface LocalCart {
     items: CartItemInput[];
     version: number;
+    local?: true;
+    tenantId?: string;
+    bizType?: string;
+    anonymousId?: string;
 }
 
 export interface CartItemVO {
@@ -185,7 +192,52 @@ export interface MergeCartOptions {
     items?: CartItemInput[];
     sourceUserId?: string;
     overwrite?: boolean;
+    anonymousLastAccessTime?: number;
+    clearLocalAfterMerge?: boolean;
+    _autoTrigger?: boolean;
 }
+
+export interface MergeResultPayload {
+    cart: CartVO;
+    autoTrigger: boolean;
+    sourceUserId: string;
+    itemsMerged: number;
+    clearLocal: boolean;
+}
+
+export interface UserChangedEvent {
+    oldUserId: string | null;
+    newUserId: string | null;
+    wasLoggedIn: boolean;
+    nowLoggedIn: boolean;
+}
+
+export interface MergeFailedEvent {
+    error: any;
+    items: CartItemInput[];
+}
+
+export type CartHubEventMap = {
+    userChanged: UserChangedEvent;
+    merged: MergeResultPayload;
+    mergeFailed: MergeFailedEvent;
+    localChanged: LocalCart;
+    cartChanged: CartVO | LocalCart;
+    itemAdded: { item: CartItemInput; result: any; local?: boolean };
+    itemUpdated: { item: any; result: any; local?: boolean };
+    itemRemoved: { skuId: string; result: any; local?: boolean };
+    itemsBatchRemoved: { skuIds: string[]; result: any; local?: boolean };
+    quantityChanged: { skuId: string; delta: number; result: any; local?: boolean };
+    cartCleared: any;
+    cartLoaded: any;
+    expireInfoLoaded: CartExpireInfo;
+    priceDropSubscribed: { skuId: string; targetPrice?: number; result: any };
+    priceDropUnsubscribed: { skuId: string; result: any };
+    priceDropBatchUnsubscribed: { skuIds?: string[]; result: any };
+    priceDropInfoLoaded: PriceDropInfo;
+    error: { url: string; error: any };
+    success: { url: string; data: any };
+};
 
 export interface CreateShareOptions {
     title?: string;
