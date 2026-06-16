@@ -414,15 +414,23 @@ VALUES
     ('default', 'ecommerce', 'COUPON002', '9折优惠券', 'percent', 'discount', 50.00, NULL,
      NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 500, 1, '全场满50元享9折，最高减50元', 1);
 
--- 促销活动示例
+-- 促销活动示例(阶梯式满减)
 INSERT INTO `t_promotion_activity` (`tenant_id`, `biz_type`, `promotion_id`, `promotion_name`,
     `promotion_type`, `promotion_desc`, `start_time`, `end_time`, `threshold_amount`,
     `discount_amount`, `priority`, `status`)
 VALUES
-    ('default', 'ecommerce', 'PROMO001', '满200减30', 'full_reduction', '全场满200减30',
-     NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 200.00, 30.00, 1, 1),
-    ('default', 'ecommerce', 'PROMO002', '满500减100', 'full_reduction', '全场满500减100',
-     NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 500.00, 100.00, 2, 1);
+    ('default', 'ecommerce', 'PROMO001', '满99减10', 'full_reduction', '全场满99元减10元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 99.00, 10.00, 1, 1),
+    ('default', 'ecommerce', 'PROMO002', '满199减25', 'full_reduction', '全场满199元减25元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 199.00, 25.00, 2, 1),
+    ('default', 'ecommerce', 'PROMO003', '满299减45', 'full_reduction', '全场满299元减45元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 299.00, 45.00, 3, 1),
+    ('default', 'ecommerce', 'PROMO004', '满499减80', 'full_reduction', '全场满499元减80元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 499.00, 80.00, 4, 1),
+    ('default', 'ecommerce', 'PROMO005', '满799减150', 'full_reduction', '全场满799元减150元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 799.00, 150.00, 5, 1),
+    ('default', 'ecommerce', 'PROMO006', '满1299减280', 'full_reduction', '全场满1299元减280元',
+     NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 1299.00, 280.00, 6, 1);
 
 -- 用户优惠券示例
 INSERT INTO `t_user_coupon` (`tenant_id`, `biz_type`, `user_id`, `coupon_id`, `coupon_code`,
