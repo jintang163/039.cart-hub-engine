@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购物车过期清理提醒组件示例</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background: #f5f7fa; padding: 20px; color: #303133; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: #409EFF; }
+        h2 { font-size: 18px; margin: 20px 0 10px; color: #303133;
+             border-left: 4px solid #409EFF; padding-left: 10px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 6px;
+              overflow-x: auto; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+        .btn { display: inline-block; padding: 8px 16px; border: 1px solid #409EFF; background: #409EFF;
+               color: #fff; border-radius: 4px; cursor: pointer; margin: 4px; font-size: 14px; }
+        .btn:hover { background: #66b1ff; }
+        .btn-plain { background: #fff; color: #409EFF; }
+        .btn-danger { border-color: #F56C6C; background: #F56C6C; }
+        .btn-danger:hover { background: #f78989; }
+        .input-group { margin: 8px 0; }
+        label { display: inline-block; width: 100px; font-size: 14px; color: #606266; }
+        input { padding: 6px 10px; border: 1px solid #dcdfe6; border-radius: 4px; width: 200px; }
+
+        .cart-expire-banner { padding: 14px 18px; border-radius: 8px; margin-bottom: 16px;
+                               display: flex; align-items: center; justify-content: space-between;
+                               flex-wrap: wrap; gap: 12px; }
+        .cart-expire-banner.warning { background: linear-gradient(135deg, #fff7e6, #ffedd5);
+                                       border: 1px solid #ffe0b2; }
+        .cart-expire-banner.danger { background: linear-gradient(135deg, #fef0f0, #fde2e2);
+                                      border: 1px solid #fecaca; }
+        .cart-expire-banner.normal { background: linear-gradient(135deg, #ecf5ff, #d9ecff);
+                                      border: 1px solid #c6e2ff; }
+        .banner-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 260px; }
+        .banner-icon { width: 40px; height: 40px; border-radius: 50%; display: flex;
+                       align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .warning .banner-icon { background: #faad14; color: #fff; }
+        .danger .banner-icon { background: #F56C6C; color: #fff; }
+        .normal .banner-icon { background: #409EFF; color: #fff; }
+        .banner-text { flex: 1; }
+        .banner-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+        .warning .banner-title { color: #b88230; }
+        .danger .banner-title { color: #c45656; }
+        .normal .banner-title { color: #3a71b8; }
+        .banner-desc { font-size: 13px; color: #606266; line-height: 1.5; }
+        .countdown { font-size: 12px; margin-top: 4px; color: #909399; }
+        .countdown-num { font-weight: 700; font-size: 14px; color: #F56C6C; }
+        .banner-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .banner-btn { padding: 6px 14px; border-radius: 6px; cursor: pointer;
+                      font-size: 13px; border: none; font-weight: 500; transition: all 0.2s; }
+        .banner-btn-primary { background: #409EFF; color: #fff; }
+        .banner-btn-primary:hover { background: #66b1ff; }
+        .banner-btn-plain { background: rgba(64,158,255,0.1); color: #409EFF; }
+        .banner-btn-plain:hover { background: rgba(64,158,255,0.18); }
+        .banner-btn-danger { background: #F56C6C; color: #fff; }
+        .banner-btn-danger:hover { background: #f78989; }
+
+        .expire-detail-card { border: 1px solid #ebeef5; border-radius: 8px; padding: 16px;
+                              background: #fafafa; margin-top: 12px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                       gap: 12px; margin-top: 10px; }
+        .detail-item { padding: 10px 12px; background: #fff; border-radius: 6px;
+                       border: 1px solid #ebeef5; }
+        .detail-label { font-size: 12px; color: #909399; margin-bottom: 4px; }
+        .detail-value { font-size: 15px; font-weight: 600; color: #303133; }
+        .detail-value.warn { color: #E6A23C; }
+        .detail-value.danger { color: #F56C6C; }
+        .detail-value.success { color: #67C23A; }
+
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .tag-warn { background: #fdf6ec; color: #E6A23C; }
+        .tag-danger { background: #fef0f0; color: #F56C6C; }
+        .tag-success { background: #f0f9eb; color: #67C23A; }
+        .tag-info { background: #ecf5ff; color: #409EFF; }
+
+        .progress-wrap { margin-top: 10px; }
+        .progress-bar { width: 100%; height: 6px; background: #ebeef5; border-radius: 3px; overflow: hidden; }
+        .progress-inner { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .progress-inner.warn { background: #E6A23C; }
+        .progress-inner.danger { background: #F56C6C; }
+        .progress-inner.normal { background: #67C23A; }
+
+        .simulate-panel { background: #f0f2f5; border-radius: 8px; padding: 16px;
+                          margin-top: 16px; border: 1px dashed #c0c4cc; }
+        .simulate-title { font-size: 14px; font-weight: 600; margin-bottom: 10px;
+                          color: #606266; display: flex; align-items: center; gap: 6px; }
+        .simulate-title::before { content: '🧪'; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🛒 购物车过期清理提醒组件示例</h1>
+
+    <div class="card">
+        <h2>SDK 配置</h2>
+        <div class="input-group">
+            <label>API Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:8080">
+        </div>
+        <div class="input-group">
+            <label>Tenant ID:</label>
+            <input type="text" id="tenantId" value="default">
+        </div>
+        <div class="input-group">
+            <label>Biz Type:</label>
+            <input type="text" id="bizType" value="ecommerce">
+        </div>
+        <div class="input-group">
+            <label>User ID:</label>
+            <input type="text" id="userId" value="user_1001">
+        </div>
+        <button class="btn" onclick="initSDK()">初始化 SDK</button>
+        <button class="btn btn-plain" onclick="loadExpireInfo()">刷新过期信息</button>
+        <button class="btn btn-danger" onclick="clearCart()">清空购物车</button>
+    </div>
+
+    <div class="card">
+        <h2>过期提醒 Banner 组件</h2>
+        <div id="expireBannerContainer"></div>
+
+        <div class="simulate-panel">
+            <div class="simulate-title">模拟不同状态预览</div>
+            <button class="btn btn-plain" onclick="previewExpireInfo('normal')">正常状态</button>
+            <button class="btn btn-plain" onclick="previewExpireInfo('warning')">即将过期</button>
+            <button class="btn btn-plain" onclick="previewExpireInfo('danger')">已过期</button>
+            <button class="btn btn-plain" onclick="previewExpireInfo('empty')">购物车为空</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>过期详情卡片组件</h2>
+        <div id="expireDetailContainer">
+            <div style="text-align:center;color:#909399;padding:40px 0;">暂无数据，请点击上方按钮加载</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>原始 API 响应</h2>
+        <pre id="rawResponse">等待加载...</pre>
+    </div>
+
+    <div class="card">
+        <h2>组件使用方式</h2>
+        <pre>
+// 1. 初始化 SDK
+const sdk = CartHubSDK.create({
+    baseUrl: 'http://localhost:8080',
+    tenantId: 'default',
+    bizType: 'ecommerce',
+    userId: 'user_1001',
+    debug: true
+});
+
+// 2. 获取过期信息
+const expireInfo = await sdk.getExpireInfo();
+
+// 3. 或者在购物车数据中直接读取
+const cart = await sdk.getCart();
+console.log(cart.isExpiring, cart.daysLeft, cart.expireTime);
+
+// 4. 监听事件
+sdk.on('expireInfoLoaded', (info) => {
+    if (info.isExpiring) {
+        renderExpireBanner(info);
+    }
+});</pre>
+    </div>
+</div>
+
+<script src="../cart-hub-sdk.js"></script>
+<script>
+    let sdk = null;
+    let currentExpireInfo = null;
+
+    function initSDK() {
+        sdk = CartHubSDK.create({
+            baseUrl: document.getElementById('baseUrl').value,
+            tenantId: document.getElementById('tenantId').value,
+            bizType: document.getElementById('bizType').value,
+            userId: document.getElementById('userId').value,
+            debug: true
+        });
+        sdk.on('expireInfoLoaded', (info) => {
+            currentExpireInfo = info;
+            renderAll(info);
+        });
+        alert('SDK 初始化完成');
+    }
+
+    async function loadExpireInfo() {
+        if (!sdk) { alert('请先初始化 SDK'); return; }
+        try {
+            const info = await sdk.getExpireInfo();
+            document.getElementById('rawResponse').textContent = JSON.stringify(info, null, 2);
+        } catch (e) {
+            document.getElementById('rawResponse').textContent =
+                '接口请求失败（可能后端未启动）：' + e.message + '\n\n展示模拟数据...';
+            previewExpireInfo('warning');
+        }
+    }
+
+    async function clearCart() {
+        if (!sdk) { alert('请先初始化 SDK'); return; }
+        if (!confirm('确定要清空购物车吗？')) return;
+        try {
+            await sdk.clearCart();
+            alert('购物车已清空');
+            loadExpireInfo();
+        } catch (e) {
+            alert('清空失败：' + e.message);
+        }
+    }
+
+    function goCheckout() {
+        alert('跳转到结算页面（示例）');
+    }
+
+    function renderAll(info) {
+        renderExpireBanner(info);
+        renderExpireDetail(info);
+        document.getElementById('rawResponse').textContent = JSON.stringify(info, null, 2);
+    }
+
+    function previewExpireInfo(type) {
+        const now = Date.now();
+        let info;
+        if (type === 'normal') {
+            info = {
+                lastAccessTime: now - 5 * 86400000,
+                expireTime: now + 25 * 86400000,
+                retentionDays: 30,
+                remindBeforeDays: 3,
+                daysLeft: 25,
+                hoursLeft: 12,
+                isExpiring: false,
+                isExpired: false,
+                hasReminded: false,
+                itemCount: 5
+            };
+        } else if (type === 'warning') {
+            info = {
+                lastAccessTime: now - 28 * 86400000,
+                expireTime: now + 2 * 86400000 + 6 * 3600000,
+                retentionDays: 30,
+                remindBeforeDays: 3,
+                daysLeft: 2,
+                hoursLeft: 6,
+                isExpiring: true,
+                isExpired: false,
+                hasReminded: true,
+                itemCount: 8
+            };
+        } else if (type === 'danger') {
+            info = {
+                lastAccessTime: now - 32 * 86400000,
+                expireTime: now - 2 * 86400000,
+                retentionDays: 30,
+                remindBeforeDays: 3,
+                daysLeft: -2,
+                hoursLeft: 0,
+                isExpiring: true,
+                isExpired: true,
+                hasReminded: true,
+                itemCount: 3
+            };
+        } else {
+            info = {
+                retentionDays: 30,
+                remindBeforeDays: 3,
+                daysLeft: 30,
+                isExpiring: false,
+                isExpired: false,
+                hasReminded: false,
+                itemCount: 0
+            };
+        }
+        currentExpireInfo = info;
+        renderAll(info);
+    }
+
+    function renderExpireBanner(info) {
+        const container = document.getElementById('expireBannerContainer');
+        if (!info || info.itemCount === 0) {
+            container.innerHTML = `
+                <div class="cart-expire-banner normal">
+                    <div class="banner-left">
+                        <div class="banner-icon">🛒</div>
+                        <div class="banner-text">
+                            <div class="banner-title">购物车为空</div>
+                            <div class="banner-desc">快去挑选心仪的商品吧~</div>
+                        </div>
+                    </div>
+                    <div class="banner-actions">
+                        <button class="banner-btn banner-btn-primary" onclick="alert('跳转到首页')">去逛逛</button>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        let bannerClass = 'normal';
+        let icon = '⏰';
+        let title = '购物车商品有效';
+        let desc = `商品将在 ${info.retentionDays} 天内保留，添加或修改商品会自动续期`;
+        let actionBtn = '';
+
+        if (info.isExpired) {
+            bannerClass = 'danger';
+            icon = '⚠️';
+            title = '购物车商品已过期';
+            desc = '您的购物车商品已超过保留期限，已被自动清理并归档';
+            actionBtn = `<button class="banner-btn banner-btn-plain" onclick="alert('查看归档记录')">查看归档</button>`;
+        } else if (info.isExpiring) {
+            bannerClass = 'warning';
+            icon = '⏳';
+            title = '购物车商品即将过期';
+            desc = `您有 ${info.itemCount} 件商品即将过期，尽快结算避免被清理`;
+            actionBtn = `<button class="banner-btn banner-btn-primary" onclick="goCheckout()">立即结算</button>
+                         <button class="banner-btn banner-btn-plain" onclick="alert('查看购物车')">查看详情</button>`;
+        } else {
+            actionBtn = `<button class="banner-btn banner-btn-plain" onclick="alert('查看购物车')">查看购物车</button>`;
+        }
+
+        let countdownHtml = '';
+        if (!info.isExpired && info.daysLeft != null) {
+            if (info.daysLeft > 0) {
+                countdownHtml = `<div class="countdown">剩余有效时间：
+                    <span class="countdown-num">${info.daysLeft}</span> 天
+                    ${info.hoursLeft ? `<span class="countdown-num">${info.hoursLeft}</span> 小时` : ''}
+                </div>`;
+            } else if (info.hoursLeft) {
+                countdownHtml = `<div class="countdown">剩余有效时间：
+                    <span class="countdown-num">${info.hoursLeft}</span> 小时
+                </div>`;
+            }
+        }
+
+        container.innerHTML = `
+            <div class="cart-expire-banner ${bannerClass}">
+                <div class="banner-left">
+                    <div class="banner-icon">${icon}</div>
+                    <div class="banner-text">
+                        <div class="banner-title">${title}</div>
+                        <div class="banner-desc">${desc}</div>
+                        ${countdownHtml}
+                    </div>
+                </div>
+                <div class="banner-actions">${actionBtn}</div>
+            </div>`;
+    }
+
+    function renderExpireDetail(info) {
+        const container = document.getElementById('expireDetailContainer');
+        if (!info) {
+            container.innerHTML = '<div style="text-align:center;color:#909399;padding:40px 0;">暂无数据</div>';
+            return;
+        }
+
+        const fmtTime = (ts) => ts ? new Date(ts).toLocaleString('zh-CN') : '-';
+        const statusTag = info.isExpired
+            ? '<span class="tag tag-danger">已过期</span>'
+            : info.isExpiring
+                ? '<span class="tag tag-warn">即将过期</span>'
+                : '<span class="tag tag-success">正常</span>';
+
+        let valueClass = 'success';
+        if (info.isExpired) valueClass = 'danger';
+        else if (info.isExpiring) valueClass = 'warn';
+
+        const daysLeftText = info.daysLeft < 0 ? `已过期 ${Math.abs(info.daysLeft)} 天` : `${info.daysLeft} 天`;
+        const progress = Math.max(0, Math.min(100,
+            ((info.retentionDays - Math.max(0, info.daysLeft || 0)) / info.retentionDays) * 100));
+
+        container.innerHTML = `
+            <div class="expire-detail-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <div style="font-weight:600;font-size:15px;">
+                        📅 购物车有效期管理 ${statusTag}
+                        ${info.hasReminded ? '<span class="tag tag-info">已发送提醒</span>' : ''}
+                    </div>
+                    <div style="font-size:12px;color:#909399;">
+                        商品保留 ${info.retentionDays} 天 · 到期前 ${info.remindBeforeDays} 天提醒
+                    </div>
+                </div>
+
+                <div class="progress-wrap">
+                    <div class="progress-bar">
+                        <div class="progress-inner ${valueClass}" style="width:${progress}%"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:12px;color:#909399;margin-top:4px;">
+                        <span>加入</span>
+                        <span>已使用 ${progress.toFixed(1)}%</span>
+                        <span>到期</span>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">最后访问时间</div>
+                        <div class="detail-value">${fmtTime(info.lastAccessTime)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">到期时间</div>
+                        <div class="detail-value ${valueClass}">${fmtTime(info.expireTime)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">剩余有效时间</div>
+                        <div class="detail-value ${valueClass}">${daysLeftText}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">当前商品数量</div>
+                        <div class="detail-value">${info.itemCount ?? 0} 件</div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    window.addEventListener('load', () => {
+        previewExpireInfo('warning');
+    });
+</script>
+</body>
+</html>

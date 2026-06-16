@@ -82,15 +82,15 @@ public class CartExpireCleanupService {
     }
 
     private void doCleanup() {
-        int retentionDays = cartHubProperties.getCleanup().getItemRetentionDays();
-        int remindDays = cartHubProperties.getCleanup().getRemindBeforeDays();
+        String tenantId = CartConstant.DEFAULT_TENANT_ID;
+        String bizType = CartConstant.BIZ_TYPE_ECOMMERCE;
+
+        int retentionDays = cartRedisStorage.resolveItemRetentionDays(tenantId, bizType);
+        int remindDays = cartRedisStorage.resolveRemindBeforeDays(tenantId, bizType);
         int batchSize = cartHubProperties.getCleanup().getBatchSize();
         long now = System.currentTimeMillis();
         long expireBeforeTs = now - retentionDays * 86400_000L;
         long remindBeforeTs = now - (retentionDays - remindDays) * 86400_000L;
-
-        String tenantId = CartConstant.DEFAULT_TENANT_ID;
-        String bizType = CartConstant.BIZ_TYPE_ECOMMERCE;
 
         int totalExpired = 0;
         int totalReminded = 0;
@@ -102,7 +102,7 @@ public class CartExpireCleanupService {
             for (String userId : expiringUsers) {
                 try {
                     if (!cartRedisStorage.hasExpireReminded(tenantId, bizType, userId)) {
-                        Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+                        Cart cart = cartRedisStorage.getCartReadOnly(tenantId, bizType, userId);
                         if (cart != null && cart.getItems() != null && !cart.getItems().isEmpty()) {
                             long daysLeft = (cart.getExpireTime() != null ? cart.getExpireTime() - now : 0) / 86400_000L;
                             cartNotificationService.sendExpireReminder(tenantId, bizType, userId, cart, (int) daysLeft);
@@ -146,7 +146,7 @@ public class CartExpireCleanupService {
 
     @Transactional(rollbackFor = Exception.class)
     public int archiveAndCleanup(String tenantId, String bizType, String userId) {
-        Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+        Cart cart = cartRedisStorage.getCartReadOnly(tenantId, bizType, userId);
         if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
             cartRedisStorage.clearCart(tenantId, bizType, userId);
             return 0;
@@ -281,8 +281,10 @@ public class CartExpireCleanupService {
         Long lastAccessTime = cartRedisStorage.getLastAccessTime(tenantId, bizType, userId);
         result.put("lastAccessTime", lastAccessTime);
 
-        int retentionDays = cartHubProperties.getCleanup().getItemRetentionDays();
+        int retentionDays = cartRedisStorage.resolveItemRetentionDays(tenantId, bizType);
+        int remindBeforeDays = cartRedisStorage.resolveRemindBeforeDays(tenantId, bizType);
         result.put("retentionDays", retentionDays);
+        result.put("remindBeforeDays", remindBeforeDays);
 
         if (lastAccessTime != null) {
             long expireTime = lastAccessTime + retentionDays * 86400_000L;
@@ -294,7 +296,7 @@ public class CartExpireCleanupService {
             result.put("expireTime", expireTime);
             result.put("daysLeft", daysLeft);
             result.put("hoursLeft", hoursLeft);
-            result.put("isExpiring", daysLeft <= cartHubProperties.getCleanup().getRemindBeforeDays());
+            result.put("isExpiring", daysLeft <= remindBeforeDays);
             result.put("isExpired", msLeft <= 0);
             result.put("hasReminded", cartRedisStorage.hasExpireReminded(tenantId, bizType, userId));
         } else {
@@ -304,7 +306,7 @@ public class CartExpireCleanupService {
             result.put("hasReminded", false);
         }
 
-        Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
+        Cart cart = cartRedisStorage.getCartReadOnly(tenantId, bizType, userId);
         if (cart != null) {
             result.put("itemCount", cart.getItemCount());
         }

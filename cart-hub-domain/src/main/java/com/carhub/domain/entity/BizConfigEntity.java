@@ -41,6 +41,26 @@ public class BizConfigEntity implements Serializable {
 
     private Integer discountEnable;
 
+    private Integer itemRetentionDays;
+
+    private Integer remindBeforeDays;
+
+    private Integer cleanupEnable;
+
+    private Integer cleanupArchiveToDb;
+
+    private Integer cleanupArchiveRetentionDays;
+
+    private Integer cleanupNotifyEnable;
+
+    private String cleanupNotifyChannels;
+
+    private String cleanupWechatTemplateId;
+
+    private String cleanupSmsTemplateId;
+
+    private String cleanupNotifyApiUrl;
+
     private String description;
 
     private String extConfig;

@@ -301,6 +301,12 @@
             return this._request('/api/cart/summary');
         }
 
+        async getExpireInfo() {
+            const result = await this._request('/api/cart/expire-info');
+            this._emit('expireInfoLoaded', result);
+            return result;
+        }
+
         async mergeCart(options = {}) {
             const localItems = this._localCache.items;
             const body = Object.assign({

@@ -24,6 +24,7 @@ export declare class CartHubSDK {
     getCartSimple(): Promise<CartVO>;
     getItemCount(): Promise<number>;
     getCartSummary(): Promise<CartSummary>;
+    getExpireInfo(): Promise<CartExpireInfo>;
 
     mergeCart(options?: MergeCartOptions): Promise<CartVO>;
 
@@ -420,6 +421,26 @@ export interface CartVO {
     discountCalculated?: boolean;
     discountCalculateTime?: number;
     tieredDiscountProgress?: TieredDiscountProgressVO;
+    lastAccessTime?: number;
+    expireTime?: number;
+    daysLeft?: number;
+    hoursLeft?: number;
+    isExpiring?: boolean;
+    isExpired?: boolean;
+    hasExpireReminded?: boolean;
+}
+
+export interface CartExpireInfo {
+    lastAccessTime?: number;
+    expireTime?: number;
+    retentionDays: number;
+    remindBeforeDays: number;
+    daysLeft: number;
+    hoursLeft?: number;
+    isExpiring: boolean;
+    isExpired: boolean;
+    hasReminded: boolean;
+    itemCount?: number;
 }
 
 export interface RecommendOptions {

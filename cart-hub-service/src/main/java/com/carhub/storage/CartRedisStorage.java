@@ -3,11 +3,13 @@ package com.carhub.storage;
 import com.carhub.common.constant.RedisKeyConstant;
 import com.carhub.common.util.JsonUtil;
 import com.carhub.config.CartHubProperties;
+import com.carhub.domain.entity.BizConfigEntity;
 import com.carhub.domain.model.Cart;
 import com.carhub.domain.model.CartDiscount;
 import com.carhub.domain.model.CartItem;
 import com.carhub.domain.model.DiscountDetail;
 import com.carhub.domain.model.GiftItem;
+import com.carhub.service.BizConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -31,6 +33,7 @@ public class CartRedisStorage {
     private final StringRedisTemplate stringRedisTemplate;
     private final RedissonClient redissonClient;
     private final CartHubProperties cartHubProperties;
+    private final BizConfigService bizConfigService;
 
     @Resource(name = "redisTemplate")
     private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
@@ -48,8 +51,8 @@ public class CartRedisStorage {
         String oldItemJson = cartMap.putIfAbsent(item.getSkuId(), JsonUtil.toJson(item));
         boolean added = oldItemJson == null;
         if (added) {
-            setCartExpire(cartKey);
-            incrementVersion(cartKey);
+            setCartExpire(tenantId, bizType, cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
             updateLastAccessTime(tenantId, bizType, userId);
         }
         if (log.isDebugEnabled()) {
@@ -119,8 +122,8 @@ public class CartRedisStorage {
         }
         oldItem.recalculate();
         cartMap.fastPut(item.getSkuId(), JsonUtil.toJson(oldItem));
-        setCartExpire(cartKey);
-        incrementVersion(cartKey);
+        setCartExpire(tenantId, bizType, cartKey);
+        incrementVersion(tenantId, bizType, cartKey);
         updateLastAccessTime(tenantId, bizType, userId);
         return true;
     }
@@ -138,8 +141,8 @@ public class CartRedisStorage {
                 newItem.setAddTime(System.currentTimeMillis());
             }
             cartMap.fastPut(newItem.getSkuId(), JsonUtil.toJson(newItem));
-            setCartExpire(cartKey);
-            incrementVersion(cartKey);
+            setCartExpire(tenantId, bizType, cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
             return true;
         }
         CartItem oldItem = JsonUtil.fromJson(oldJson, CartItem.class);
@@ -154,8 +157,8 @@ public class CartRedisStorage {
             oldItem.recalculate();
             cartMap.fastPut(newItem.getSkuId(), JsonUtil.toJson(oldItem));
         }
-        setCartExpire(cartKey);
-        incrementVersion(cartKey);
+        setCartExpire(tenantId, bizType, cartKey);
+        incrementVersion(tenantId, bizType, cartKey);
         updateLastAccessTime(tenantId, bizType, userId);
         return true;
     }
@@ -168,7 +171,7 @@ public class CartRedisStorage {
         RMap<String, String> cartMap = redissonClient.getMap(cartKey);
         Object removed = cartMap.remove(skuId);
         if (removed != null) {
-            incrementVersion(cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
             updateLastAccessTime(tenantId, bizType, userId);
             return true;
         }
@@ -189,7 +192,7 @@ public class CartRedisStorage {
         List<?> result = batch.execute().getResponses();
         long count = result.stream().filter(Objects::nonNull).count();
         if (count > 0) {
-            incrementVersion(cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
             updateLastAccessTime(tenantId, bizType, userId);
         }
         return count;
@@ -264,6 +267,16 @@ public class CartRedisStorage {
     }
 
     public Cart getCart(String tenantId, String bizType, String userId) {
+        Cart cart = buildCartFromStorage(tenantId, bizType, userId);
+        updateLastAccessTime(tenantId, bizType, userId);
+        return cart;
+    }
+
+    public Cart getCartReadOnly(String tenantId, String bizType, String userId) {
+        return buildCartFromStorage(tenantId, bizType, userId);
+    }
+
+    private Cart buildCartFromStorage(String tenantId, String bizType, String userId) {
         List<CartItem> items = getItems(tenantId, bizType, userId);
         Cart cart = Cart.builder()
                 .tenantId(tenantId)
@@ -289,21 +302,57 @@ public class CartRedisStorage {
 
         Long lastAccessTime = getLastAccessTime(tenantId, bizType, userId);
         cart.setLastAccessTime(lastAccessTime);
-        if (lastAccessTime != null && cartHubProperties.getCleanup() != null
-                && cartHubProperties.getCleanup().getItemRetentionDays() != null) {
-            long expireMs = lastAccessTime + cartHubProperties.getCleanup().getItemRetentionDays() * 86400_000L;
+        int retentionDays = resolveItemRetentionDays(tenantId, bizType);
+        if (lastAccessTime != null && retentionDays > 0) {
+            long expireMs = lastAccessTime + retentionDays * 86400_000L;
             cart.setExpireTime(expireMs);
         }
 
-        updateLastAccessTime(tenantId, bizType, userId);
         cart.recalculate();
         return cart;
     }
 
+    public int resolveItemRetentionDays(String tenantId, String bizType) {
+        try {
+            BizConfigEntity cfg = bizConfigService.getConfig(tenantId, bizType);
+            if (cfg != null && cfg.getItemRetentionDays() != null && cfg.getItemRetentionDays() > 0) {
+                return cfg.getItemRetentionDays();
+            }
+        } catch (Exception e) {
+            log.warn("Resolve itemRetentionDays from biz config failed, fallback to default", e);
+        }
+        if (cartHubProperties.getCleanup() != null && cartHubProperties.getCleanup().getItemRetentionDays() != null) {
+            return cartHubProperties.getCleanup().getItemRetentionDays();
+        }
+        return 30;
+    }
+
+    public int resolveRemindBeforeDays(String tenantId, String bizType) {
+        try {
+            BizConfigEntity cfg = bizConfigService.getConfig(tenantId, bizType);
+            if (cfg != null && cfg.getRemindBeforeDays() != null && cfg.getRemindBeforeDays() > 0) {
+                return cfg.getRemindBeforeDays();
+            }
+        } catch (Exception e) {
+            log.warn("Resolve remindBeforeDays from biz config failed, fallback to default", e);
+        }
+        if (cartHubProperties.getCleanup() != null && cartHubProperties.getCleanup().getRemindBeforeDays() != null) {
+            return cartHubProperties.getCleanup().getRemindBeforeDays();
+        }
+        return 3;
+    }
+
+    public int resolveCartExpireSeconds(String tenantId, String bizType) {
+        int retentionDays = resolveItemRetentionDays(tenantId, bizType);
+        int bufferDays = 2;
+        return (retentionDays + bufferDays) * 86400;
+    }
+
     public void updateLastAccessTime(String tenantId, String bizType, String userId) {
         String key = RedisKeyConstant.buildLastAccessKey(tenantId, bizType, userId);
+        int expireSeconds = resolveCartExpireSeconds(tenantId, bizType);
         stringRedisTemplate.opsForValue().set(key, String.valueOf(System.currentTimeMillis()),
-                Duration.ofSeconds(cartHubProperties.getRedis().getCartExpireSeconds()));
+                Duration.ofSeconds(expireSeconds));
     }
 
     public Long getLastAccessTime(String tenantId, String bizType, String userId) {
@@ -425,23 +474,21 @@ public class CartRedisStorage {
         int newQty = (item.getQuantity() == null ? 0 : item.getQuantity()) + delta;
         if (newQty <= 0) {
             cartMap.remove(skuId);
-            incrementVersion(cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
             return 0L;
         }
         item.setQuantity(newQty);
         item.recalculate();
         cartMap.fastPut(skuId, JsonUtil.toJson(item));
-        setCartExpire(cartKey);
-        incrementVersion(cartKey);
+        setCartExpire(tenantId, bizType, cartKey);
+        incrementVersion(tenantId, bizType, cartKey);
         updateLastAccessTime(tenantId, bizType, userId);
         return (long) newQty;
     }
 
-    private void setCartExpire(String cartKey) {
-        Integer expire = cartHubProperties.getRedis().getCartExpireSeconds();
-        if (expire != null && expire > 0) {
-            redissonClient.getMap(cartKey).expire(Duration.ofSeconds(expire));
-        }
+    private void setCartExpire(String tenantId, String bizType, String cartKey) {
+        int expireSeconds = resolveCartExpireSeconds(tenantId, bizType);
+        redissonClient.getMap(cartKey).expire(Duration.ofSeconds(expireSeconds));
     }
 
     private String getVersionKey(String cartKey) {
@@ -454,10 +501,10 @@ public class CartRedisStorage {
         return verStr == null ? 0L : Long.parseLong(verStr);
     }
 
-    private void incrementVersion(String cartKey) {
+    private void incrementVersion(String tenantId, String bizType, String cartKey) {
         stringRedisTemplate.opsForValue().increment(getVersionKey(cartKey));
-        stringRedisTemplate.expire(getVersionKey(cartKey),
-                Duration.ofSeconds(cartHubProperties.getRedis().getCartExpireSeconds()));
+        int expireSeconds = resolveCartExpireSeconds(tenantId, bizType);
+        stringRedisTemplate.expire(getVersionKey(cartKey), Duration.ofSeconds(expireSeconds));
     }
 
     private void deleteVersion(String cartKey) {
@@ -507,8 +554,9 @@ public class CartRedisStorage {
                 .discountCalculated(cart.getDiscountCalculated())
                 .discountCalculateTime(cart.getDiscountCalculateTime())
                 .build();
+        int expireSeconds = resolveCartExpireSeconds(tenantId, bizType);
         stringRedisTemplate.opsForValue().set(metaKey, JsonUtil.toJson(meta),
-                Duration.ofSeconds(cartHubProperties.getRedis().getCartExpireSeconds()));
+                Duration.ofSeconds(expireSeconds));
     }
 
     public CartMeta getCartMeta(String tenantId, String bizType, String userId) {
@@ -551,8 +599,8 @@ public class CartRedisStorage {
             updated++;
         }
         if (updated > 0) {
-            setCartExpire(cartKey);
-            incrementVersion(cartKey);
+            setCartExpire(tenantId, bizType, cartKey);
+            incrementVersion(tenantId, bizType, cartKey);
         }
         return updated;
     }
