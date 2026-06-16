@@ -17,6 +17,10 @@ public class ImportTaskVO implements Serializable {
 
     private String taskId;
 
+    private String tenantId;
+
+    private String userId;
+
     private String status;
 
     private Integer totalCount;

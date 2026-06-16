@@ -1,4 +1,4 @@
-package com.carhub.domain.vo;
+package com.carhub.service.excel;
 
 import cn.afterturn.easypoi.excel.annotation.Excel;
 import lombok.AllArgsConstructor;
