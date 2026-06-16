@@ -41,6 +41,7 @@ public class CartService {
     private final CartPromotionService cartPromotionService;
     private final CartRecommendService cartRecommendService;
     private final SensitiveWordFilterService sensitiveWordFilterService;
+    private final PromotionEngineService promotionEngineService;
 
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -541,6 +542,14 @@ public class CartService {
             builder.validItems(new ArrayList<>());
             builder.invalidItems(new ArrayList<>());
             builder.validItemCount(0);
+        }
+
+        try {
+            BigDecimal totalAmount = cart.getTotalAmount() != null ? cart.getTotalAmount() : BigDecimal.ZERO;
+            builder.tieredDiscountProgress(promotionEngineService.calculateTieredDiscountProgress(
+                    cart.getTenantId(), cart.getBizType(), totalAmount));
+        } catch (Exception e) {
+            log.warn("calculate tiered discount progress failed", e);
         }
 
         return builder.build();

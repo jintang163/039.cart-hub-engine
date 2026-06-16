@@ -71,4 +71,6 @@ public class CartVO implements Serializable {
 
     private Long discountCalculateTime;
 
+    private TieredDiscountProgressVO tieredDiscountProgress;
+
 }

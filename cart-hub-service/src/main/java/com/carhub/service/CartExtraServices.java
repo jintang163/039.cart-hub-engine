@@ -15,6 +15,7 @@ import com.carhub.domain.model.*;
 import com.carhub.domain.vo.CouponVO;
 import com.carhub.domain.vo.DiscountResultVO;
 import com.carhub.domain.vo.PromotionVO;
+import com.carhub.domain.vo.TieredDiscountProgressVO;
 import com.carhub.mapper.*;
 import com.carhub.storage.CartRedisStorage;
 import lombok.RequiredArgsConstructor;
@@ -774,6 +775,183 @@ class PromotionEngineService {
                     .gifts(giftVOs)
                     .build();
         }).collect(Collectors.toList());
+    }
+
+    public TieredDiscountProgressVO calculateTieredDiscountProgress(String tenantId, String bizType,
+                                                                     BigDecimal totalAmount) {
+        List<PromotionActivityEntity> promotions = queryActiveFullReductionPromotions(tenantId, bizType);
+
+        String remoteUrl = cartHubProperties.getPromotion().getPromotionListUrl();
+        if (StringUtils.isNotBlank(remoteUrl)) {
+            try {
+                String url = remoteUrl + "?tenantId=" + tenantId + "&bizType=" + bizType;
+                ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+                if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                    List<PromotionVO> remotePromotions = JsonUtil.fromJsonList(response.getBody(), PromotionVO.class);
+                    if (remotePromotions != null && !remotePromotions.isEmpty()) {
+                        return buildTieredProgressFromVO(remotePromotions, totalAmount);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Call remote promotion list for tiered discount failed: {}", e.getMessage());
+            }
+        }
+
+        if (promotions.isEmpty()) {
+            return buildEmptyProgress(totalAmount);
+        }
+
+        promotions.sort(Comparator.comparing(PromotionActivityEntity::getThresholdAmount));
+
+        List<TieredDiscountProgressVO.TierInfo> allTiers = new ArrayList<>();
+        TieredDiscountProgressVO.TierInfo currentTier = null;
+        TieredDiscountProgressVO.TierInfo nextTier = null;
+        BigDecimal currentDiscountAmount = BigDecimal.ZERO;
+
+        for (PromotionActivityEntity p : promotions) {
+            boolean reached = totalAmount.compareTo(p.getThresholdAmount()) >= 0;
+            BigDecimal gapAmount = reached ? BigDecimal.ZERO :
+                    p.getThresholdAmount().subtract(totalAmount);
+            BigDecimal progressPercent = reached ? BigDecimal.valueOf(100) :
+                    totalAmount.compareTo(BigDecimal.ZERO) > 0 ?
+                            totalAmount.multiply(BigDecimal.valueOf(100))
+                                    .divide(p.getThresholdAmount(), 0, BigDecimal.ROUND_HALF_UP) :
+                            BigDecimal.ZERO;
+
+            TieredDiscountProgressVO.TierInfo tier = TieredDiscountProgressVO.TierInfo.builder()
+                    .promotionId(p.getPromotionId())
+                    .promotionName(p.getPromotionName())
+                    .thresholdAmount(p.getThresholdAmount())
+                    .discountAmount(p.getDiscountAmount())
+                    .reached(reached)
+                    .gapAmount(gapAmount)
+                    .progressPercent(progressPercent)
+                    .build();
+
+            allTiers.add(tier);
+
+            if (reached) {
+                currentTier = tier;
+                currentDiscountAmount = p.getDiscountAmount();
+            } else if (nextTier == null) {
+                nextTier = tier;
+            }
+        }
+
+        String progressTip = buildProgressTip(currentTier, nextTier, totalAmount);
+
+        return TieredDiscountProgressVO.builder()
+                .totalAmount(totalAmount)
+                .currentDiscountAmount(currentDiscountAmount)
+                .currentTier(currentTier)
+                .nextTier(nextTier)
+                .allTiers(allTiers)
+                .progressTip(progressTip)
+                .build();
+    }
+
+    private List<PromotionActivityEntity> queryActiveFullReductionPromotions(String tenantId, String bizType) {
+        LambdaQueryWrapper<PromotionActivityEntity> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(PromotionActivityEntity::getTenantId, tenantId)
+                .eq(PromotionActivityEntity::getBizType, bizType)
+                .eq(PromotionActivityEntity::getPromotionType, "full_reduction")
+                .eq(PromotionActivityEntity::getStatus, 1)
+                .eq(PromotionActivityEntity::getDeleted, 0)
+                .le(PromotionActivityEntity::getStartTime, LocalDateTime.now())
+                .ge(PromotionActivityEntity::getEndTime, LocalDateTime.now())
+                .orderByAsc(PromotionActivityEntity::getThresholdAmount);
+        return promotionActivityMapper.selectList(wrapper);
+    }
+
+    private TieredDiscountProgressVO buildTieredProgressFromVO(List<PromotionVO> promotions,
+                                                                BigDecimal totalAmount) {
+        List<PromotionVO> fullReduction = promotions.stream()
+                .filter(p -> "full_reduction".equals(p.getPromotionType()) && Boolean.TRUE.equals(p.getAvailable()))
+                .sorted(Comparator.comparing(PromotionVO::getThresholdAmount))
+                .collect(Collectors.toList());
+
+        if (fullReduction.isEmpty()) {
+            return buildEmptyProgress(totalAmount);
+        }
+
+        List<TieredDiscountProgressVO.TierInfo> allTiers = new ArrayList<>();
+        TieredDiscountProgressVO.TierInfo currentTier = null;
+        TieredDiscountProgressVO.TierInfo nextTier = null;
+        BigDecimal currentDiscountAmount = BigDecimal.ZERO;
+
+        for (PromotionVO p : fullReduction) {
+            boolean reached = totalAmount.compareTo(p.getThresholdAmount()) >= 0;
+            BigDecimal gapAmount = reached ? BigDecimal.ZERO :
+                    p.getThresholdAmount().subtract(totalAmount);
+            BigDecimal progressPercent = reached ? BigDecimal.valueOf(100) :
+                    totalAmount.compareTo(BigDecimal.ZERO) > 0 ?
+                            totalAmount.multiply(BigDecimal.valueOf(100))
+                                    .divide(p.getThresholdAmount(), 0, BigDecimal.ROUND_HALF_UP) :
+                            BigDecimal.ZERO;
+
+            TieredDiscountProgressVO.TierInfo tier = TieredDiscountProgressVO.TierInfo.builder()
+                    .promotionId(p.getPromotionId())
+                    .promotionName(p.getPromotionName())
+                    .thresholdAmount(p.getThresholdAmount())
+                    .discountAmount(p.getDiscountAmount())
+                    .reached(reached)
+                    .gapAmount(gapAmount)
+                    .progressPercent(progressPercent)
+                    .build();
+
+            allTiers.add(tier);
+
+            if (reached) {
+                currentTier = tier;
+                currentDiscountAmount = p.getDiscountAmount();
+            } else if (nextTier == null) {
+                nextTier = tier;
+            }
+        }
+
+        String progressTip = buildProgressTip(currentTier, nextTier, totalAmount);
+
+        return TieredDiscountProgressVO.builder()
+                .totalAmount(totalAmount)
+                .currentDiscountAmount(currentDiscountAmount)
+                .currentTier(currentTier)
+                .nextTier(nextTier)
+                .allTiers(allTiers)
+                .progressTip(progressTip)
+                .build();
+    }
+
+    private TieredDiscountProgressVO buildEmptyProgress(BigDecimal totalAmount) {
+        return TieredDiscountProgressVO.builder()
+                .totalAmount(totalAmount)
+                .currentDiscountAmount(BigDecimal.ZERO)
+                .currentTier(null)
+                .nextTier(null)
+                .allTiers(Collections.emptyList())
+                .progressTip("暂无满减活动")
+                .build();
+    }
+
+    private String buildProgressTip(TieredDiscountProgressVO.TierInfo currentTier,
+                                     TieredDiscountProgressVO.TierInfo nextTier,
+                                     BigDecimal totalAmount) {
+        if (currentTier != null && nextTier == null) {
+            return "已享最高满减：满" + currentTier.getThresholdAmount().stripTrailingZeros().toPlainString()
+                    + "减" + currentTier.getDiscountAmount().stripTrailingZeros().toPlainString();
+        }
+        if (currentTier != null && nextTier != null) {
+            return "已享满" + currentTier.getThresholdAmount().stripTrailingZeros().toPlainString()
+                    + "减" + currentTier.getDiscountAmount().stripTrailingZeros().toPlainString()
+                    + "，再买" + nextTier.getGapAmount().stripTrailingZeros().toPlainString()
+                    + "元可享满" + nextTier.getThresholdAmount().stripTrailingZeros().toPlainString()
+                    + "减" + nextTier.getDiscountAmount().stripTrailingZeros().toPlainString();
+        }
+        if (nextTier != null) {
+            return "再买" + nextTier.getGapAmount().stripTrailingZeros().toPlainString()
+                    + "元可享满" + nextTier.getThresholdAmount().stripTrailingZeros().toPlainString()
+                    + "减" + nextTier.getDiscountAmount().stripTrailingZeros().toPlainString();
+        }
+        return "暂无满减活动";
     }
 }
 

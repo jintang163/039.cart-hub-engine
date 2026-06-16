@@ -297,6 +297,19 @@ public class CartController {
         return R.ok(promotionEngineService.calculateDiscount(calculateDTO));
     }
 
+    @ApiOperation("获取阶梯满减实时进度")
+    @GetMapping("/discount/tiered-progress")
+    public R<com.carhub.domain.vo.TieredDiscountProgressVO> getTieredDiscountProgress(
+            @ApiParam("购物车总金额（不传则自动获取）") @RequestParam(required = false) BigDecimal totalAmount) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        if (totalAmount == null) {
+            CartVO cart = cartService.getCartSimple();
+            totalAmount = cart.getTotalAmount();
+        }
+        return R.ok(promotionEngineService.calculateTieredDiscountProgress(tenantId, bizType, totalAmount));
+    }
+
     @ApiOperation("获取购物车智能推荐")
     @GetMapping("/recommend")
     public R<List<RecommendItemVO>> getRecommendations(

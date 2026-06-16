@@ -53,6 +53,7 @@ export declare class CartHubSDK {
     listAvailableCoupons(totalAmount?: number): Promise<CouponVO[]>;
     listAvailablePromotions(totalAmount?: number): Promise<PromotionVO[]>;
     getDiscountResult(): Promise<DiscountResultVO>;
+    getTieredDiscountProgress(totalAmount?: number): Promise<TieredDiscountProgressVO>;
     getRecommendations(options?: RecommendOptions): Promise<RecommendItemVO[]>;
 
     setItemRemark(skuId: string, remark: string): Promise<boolean>;
@@ -345,6 +346,25 @@ export interface DiscountResultVO {
     success: boolean;
 }
 
+export interface TieredDiscountProgressVO {
+    totalAmount: string;
+    currentDiscountAmount: string;
+    currentTier?: TierInfo;
+    nextTier?: TierInfo;
+    allTiers: TierInfo[];
+    progressTip: string;
+}
+
+export interface TierInfo {
+    promotionId: string;
+    promotionName: string;
+    thresholdAmount: string;
+    discountAmount: string;
+    reached: boolean;
+    gapAmount: string;
+    progressPercent: number;
+}
+
 export interface CartDiscount {
     discountId: string;
     discountType: string;
@@ -399,6 +419,7 @@ export interface CartVO {
     gifts?: GiftItemVO[];
     discountCalculated?: boolean;
     discountCalculateTime?: number;
+    tieredDiscountProgress?: TieredDiscountProgressVO;
 }
 
 export interface RecommendOptions {

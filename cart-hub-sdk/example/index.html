@@ -116,6 +116,31 @@
                           background: #ecf5ff; border-radius: 6px;
                           display: flex; justify-content: space-between; align-items: center; }
         .sort-save-tip { font-size: 12px; color: #409EFF; }
+
+        .tiered-progress { background: linear-gradient(135deg, #fff5f6, #fef0f0);
+                          border: 1px solid #fbc4c4; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+        .tiered-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .tiered-progress-title { font-weight: 600; color: #F56C6C; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+        .tiered-progress-tip { font-size: 13px; color: #606266; }
+        .tiered-progress-bar { height: 12px; background: #f5f7fa; border-radius: 6px; overflow: hidden; position: relative; }
+        .tiered-progress-fill { height: 100%; background: linear-gradient(90deg, #f093fb, #f5576c);
+                                border-radius: 6px; transition: width 0.5s ease; }
+        .tiered-progress-fill.reached { background: linear-gradient(90deg, #67c23a, #85ce61); }
+        .tier-markers { display: flex; justify-content: space-between; margin-top: 8px; position: relative; }
+        .tier-marker { text-align: center; position: relative; z-index: 1; }
+        .tier-marker-dot { width: 14px; height: 14px; border-radius: 50%; background: #dcdfe6;
+                           border: 2px solid #fff; margin: 0 auto 6px; box-shadow: 0 0 0 1px #dcdfe6; }
+        .tier-marker.reached .tier-marker-dot { background: #67c23a; box-shadow: 0 0 0 1px #67c23a; }
+        .tier-marker.current .tier-marker-dot { background: #f5576c; box-shadow: 0 0 0 2px #fef0f0, 0 0 0 3px #f5576c; }
+        .tier-marker-label { font-size: 11px; color: #909399; white-space: nowrap; }
+        .tier-marker.reached .tier-marker-label { color: #67c23a; font-weight: 500; }
+        .tier-marker.current .tier-marker-label { color: #f5576c; font-weight: 600; }
+        .tier-marker-amount { font-size: 12px; color: #606266; margin-top: 2px; }
+        .tier-marker.reached .tier-marker-amount { color: #67c23a; }
+        .tier-marker.current .tier-marker-amount { color: #f5576c; font-weight: 600; }
+        .tiered-discount-badge { display: inline-block; background: #fef0f0; color: #F56C6C;
+                                 padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+        .tiered-discount-badge.reached { background: #f0f9eb; color: #67C23A; }
     </style>
 </head>
 <body>
@@ -188,6 +213,23 @@
 
         <div class="card">
             <h2>6. 优惠券 & 促销活动</h2>
+
+            <div id="tieredProgressBox" style="display:none;">
+                <div class="tiered-progress">
+                    <div class="tiered-progress-header">
+                        <div class="tiered-progress-title">
+                            🏷️ 阶梯满减
+                            <span class="tiered-discount-badge" id="currentDiscountBadge">已减 ¥0</span>
+                        </div>
+                        <div class="tiered-progress-tip" id="progressTip">再买20元减5元</div>
+                    </div>
+                    <div class="tiered-progress-bar">
+                        <div class="tiered-progress-fill" id="progressFill" style="width: 0%;"></div>
+                    </div>
+                    <div class="tier-markers" id="tierMarkers"></div>
+                </div>
+            </div>
+
             <div class="discount-summary" id="discountSummary" style="display:none;">
                 <div class="summary-row">
                     <span class="summary-label">商品总金额</span>
@@ -326,6 +368,7 @@
             try {
                 const result = await sdk.addItem({ skuId, unitPrice: price, quantity: 1, itemName: name });
                 log('加入购物车成功: ' + result, 'cartResult');
+                refreshTieredProgress();
             } catch (e) { log('加入失败: ' + e.message, 'cartResult'); }
         }
 
@@ -347,6 +390,7 @@
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
                 renderCartRemarks(cart);
                 updateDiscountSummary(cart);
+                refreshTieredProgress();
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         }
 
@@ -358,6 +402,7 @@
                 renderCartRemarks(cart);
                 updateDiscountSummary(cart);
                 loadRecommendations(cart);
+                refreshTieredProgress();
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         }
 
@@ -384,6 +429,8 @@
             try {
                 const r = await sdk.clearCart();
                 log('已清空: ' + r, 'cartResult');
+                refreshTieredProgress();
+                updateDiscountSummary({ totalAmount: '0' });
             } catch (e) { log('失败: ' + e.message, 'cartResult'); }
         }
 
@@ -629,12 +676,71 @@
             }
         }
 
+        async function refreshTieredProgress() {
+            if (!sdk) return;
+            try {
+                const cart = await sdk.getCartSimple();
+                const totalAmount = parseFloat(cart.totalAmount || '0');
+                const progress = await sdk.getTieredDiscountProgress(totalAmount);
+                updateTieredProgress(progress);
+            } catch (e) {
+                console.warn('获取阶梯满减进度失败:', e.message);
+            }
+        }
+
+        function updateTieredProgress(progress) {
+            const box = document.getElementById('tieredProgressBox');
+            if (!progress || !progress.allTiers || progress.allTiers.length === 0) {
+                box.style.display = 'none';
+                return;
+            }
+
+            box.style.display = 'block';
+
+            document.getElementById('progressTip').textContent = progress.progressTip || '暂无满减活动';
+
+            const discountAmount = parseFloat(progress.currentDiscountAmount || '0');
+            const badge = document.getElementById('currentDiscountBadge');
+            badge.textContent = discountAmount > 0 ? `已减 ¥${discountAmount.toFixed(2)}` : '未达门槛';
+            badge.className = 'tiered-discount-badge' + (discountAmount > 0 ? ' reached' : '');
+
+            const totalAmount = parseFloat(progress.totalAmount || '0');
+            const maxThreshold = Math.max(...progress.allTiers.map(t => parseFloat(t.thresholdAmount)));
+            const progressPercent = Math.min(100, (totalAmount / maxThreshold) * 100);
+            const fillEl = document.getElementById('progressFill');
+            fillEl.style.width = progressPercent + '%';
+            if (progress.currentTier) {
+                fillEl.classList.add('reached');
+            } else {
+                fillEl.classList.remove('reached');
+            }
+
+            const markersEl = document.getElementById('tierMarkers');
+            markersEl.innerHTML = progress.allTiers.map(t => {
+                const reached = t.reached;
+                const isCurrentNext = progress.nextTier && progress.nextTier.promotionId === t.promotionId;
+                let cls = 'tier-marker';
+                if (reached) cls += ' reached';
+                if (isCurrentNext) cls += ' current';
+                const threshold = parseFloat(t.thresholdAmount);
+                const discount = parseFloat(t.discountAmount);
+                return `
+                    <div class="${cls}" style="left: ${(threshold / maxThreshold) * 100}%; transform: translateX(-50%);">
+                        <div class="tier-marker-dot"></div>
+                        <div class="tier-marker-label">满${threshold.toFixed(0)}减${discount.toFixed(0)}</div>
+                        <div class="tier-marker-amount">${reached ? '✓ 已享' : (isCurrentNext ? '还差 ¥' + parseFloat(t.gapAmount).toFixed(0) : '')}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         const _origGetCart = async function() {
             if (!sdk) return alert('请先初始化SDK');
             try {
                 const cart = await sdk.getCart(true);
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
                 updateDiscountSummary(cart);
+                refreshTieredProgress();
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         };
         const _origGetCartSimple = async function() {
@@ -644,6 +750,7 @@
                 document.getElementById('cartResult').textContent = JSON.stringify(cart, null, 2);
                 updateDiscountSummary(cart);
                 loadRecommendations(cart);
+                refreshTieredProgress();
             } catch (e) { log('获取失败: ' + e.message, 'cartResult'); }
         };
 

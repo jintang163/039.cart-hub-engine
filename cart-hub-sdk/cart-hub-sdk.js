@@ -449,6 +449,14 @@
             return this._request('/api/cart/discount/result');
         }
 
+        async getTieredDiscountProgress(totalAmount) {
+            const qs = new URLSearchParams();
+            if (totalAmount !== undefined && totalAmount !== null) {
+                qs.set('totalAmount', String(totalAmount));
+            }
+            return this._request('/api/cart/discount/tiered-progress?' + qs.toString());
+        }
+
         async getRecommendations(options = {}) {
             const qs = new URLSearchParams();
             if (options.currentSkus && options.currentSkus.length > 0) {
