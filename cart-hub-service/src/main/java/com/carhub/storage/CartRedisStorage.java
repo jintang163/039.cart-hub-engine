@@ -62,6 +62,55 @@ public class CartRedisStorage {
         return added;
     }
 
+    public int batchAddItems(String tenantId, String bizType, String userId, List<CartItem> items, boolean overwrite) {
+        String cartKey = RedisKeyConstant.buildCartKey(tenantId, bizType, userId);
+        if (items == null || items.isEmpty()) {
+            return 0;
+        }
+        long now = System.currentTimeMillis();
+        RBatch batch = redissonClient.createBatch();
+        RMap<String, String> batchMap = batch.getMap(cartKey);
+        int count = 0;
+        for (CartItem item : items) {
+            if (item == null || StringUtils.isBlank(item.getSkuId())) {
+                continue;
+            }
+            item.recalculate();
+            if (item.getAddTime() == null) {
+                item.setAddTime(now);
+            }
+            if (overwrite) {
+                batchMap.fastPutAsync(item.getSkuId(), JsonUtil.toJson(item));
+            } else {
+                batchMap.putIfAbsentAsync(item.getSkuId(), JsonUtil.toJson(item));
+            }
+            count++;
+        }
+        if (count > 0) {
+            List<?> results = batch.execute().getResponses();
+            int added = 0;
+            for (int i = 0; i < results.size() && i < count; i++) {
+                Object result = results.get(i);
+                if (overwrite) {
+                    added++;
+                } else {
+                    if (result == null) {
+                        added++;
+                    }
+                }
+            }
+            if (added > 0) {
+                setCartExpire(tenantId, bizType, cartKey);
+                incrementVersion(tenantId, bizType, cartKey);
+                updateLastAccessTime(tenantId, bizType, userId);
+            }
+            log.info("batchAddItems: tenantId={}, bizType={}, userId={}, total={}, added={}, overwrite={}",
+                    tenantId, bizType, userId, count, added, overwrite);
+            return added;
+        }
+        return 0;
+    }
+
     public boolean updateItem(String tenantId, String bizType, String userId, CartItem item) {
         String cartKey = RedisKeyConstant.buildCartKey(tenantId, bizType, userId);
         if (item == null || StringUtils.isBlank(item.getSkuId())) {

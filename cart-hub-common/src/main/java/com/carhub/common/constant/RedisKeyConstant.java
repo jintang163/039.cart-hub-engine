@@ -138,4 +138,15 @@ public class RedisKeyConstant {
         return String.format(CART_PRICE_DROP_STAT_KEY, date);
     }
 
+    public static final String CART_IMPORT_TASK_KEY = CART_PREFIX + "import:task:{%s}";
+    public static final String CART_IMPORT_ERROR_KEY = CART_PREFIX + "import:error:{%s}";
+
+    public static String buildImportTaskKey(String taskId) {
+        return String.format(CART_IMPORT_TASK_KEY, taskId);
+    }
+
+    public static String buildImportErrorKey(String taskId) {
+        return String.format(CART_IMPORT_ERROR_KEY, taskId);
+    }
+
 }

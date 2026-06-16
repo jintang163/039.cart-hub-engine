@@ -38,6 +38,7 @@
         <minio.version>8.5.7</minio.version>
         <redisson.version>3.24.3</redisson.version>
         <knife4j.version>4.3.0</knife4j.version>
+        <easypoi.version>4.4.0</easypoi.version>
     </properties>
 
     <dependencyManagement>
@@ -96,6 +97,11 @@
                 <groupId>com.github.xiaoymin</groupId>
                 <artifactId>knife4j-openapi2-spring-boot-starter</artifactId>
                 <version>${knife4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.afterturn</groupId>
+                <artifactId>easypoi-spring-boot-starter</artifactId>
+                <version>${easypoi.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

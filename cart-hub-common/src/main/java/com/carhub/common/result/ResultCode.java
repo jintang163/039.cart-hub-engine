@@ -50,7 +50,17 @@ public enum ResultCode {
     FAVORITE_ITEM_NOT_FOUND(7001, "收藏商品不存在"),
     FAVORITE_ALREADY_EXISTS(7002, "商品已收藏"),
     FAVORITE_EMPTY(7003, "收藏夹为空"),
-    FAVORITE_ADD_FAILED(7004, "添加收藏失败");
+    FAVORITE_ADD_FAILED(7004, "添加收藏失败"),
+
+    IMPORT_TASK_NOT_FOUND(8001, "导入任务不存在"),
+    IMPORT_TASK_PROCESSING(8002, "导入任务正在处理中"),
+    IMPORT_FILE_EMPTY(8003, "导入文件不能为空"),
+    IMPORT_FILE_INVALID(8004, "导入文件格式不正确"),
+    IMPORT_FILE_TOO_LARGE(8005, "导入文件过大"),
+    IMPORT_NO_VALID_DATA(8006, "导入文件中没有有效的商品数据"),
+    IMPORT_REPORT_NOT_READY(8007, "失败报告尚未生成"),
+    EXPORT_CART_EMPTY(8008, "购物车为空，无法导出"),
+    EXPORT_FAILED(8009, "导出失败");
 
     private final Integer code;
     private final String message;

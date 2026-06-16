@@ -38,6 +38,7 @@ public class CartController {
     private final CartRecommendService cartRecommendService;
     private final CartExpireCleanupService cartExpireCleanupService;
     private final CartPriceDropNotifyService cartPriceDropNotifyService;
+    private final CartImportExportService cartImportExportService;
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
@@ -415,6 +416,57 @@ public class CartController {
         String bizType = com.carhub.common.context.CartContextHolder.getBizType();
         String userId = com.carhub.common.context.CartContextHolder.getUserId();
         return R.ok(cartPriceDropNotifyService.getPriceDropInfo(tenantId, bizType, userId));
+    }
+
+    @ApiOperation("Excel批量导入商品到购物车")
+    @PostMapping("/import")
+    public R<com.carhub.domain.vo.ImportTaskVO> importCart(
+            @ApiParam("Excel文件") @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @ApiParam("是否校验商品有效性") @RequestParam(defaultValue = "true") Boolean validateProduct,
+            @ApiParam("是否覆盖已存在商品") @RequestParam(defaultValue = "false") Boolean overwrite,
+            @ApiParam("添加来源") @RequestParam(defaultValue = "excel_import") String addSource) {
+        com.carhub.domain.dto.CartImportDTO dto = new com.carhub.domain.dto.CartImportDTO();
+        dto.setValidateProduct(validateProduct);
+        dto.setOverwrite(overwrite);
+        dto.setAddSource(addSource);
+        return R.ok(cartImportExportService.createImportTask(file, dto));
+    }
+
+    @ApiOperation("查询导入任务状态")
+    @GetMapping("/import/{taskId}")
+    public R<com.carhub.domain.vo.ImportTaskVO> getImportTaskStatus(
+            @ApiParam("任务ID") @PathVariable String taskId) {
+        return R.ok(cartImportExportService.getImportTaskStatus(taskId));
+    }
+
+    @ApiOperation("下载导入失败报告")
+    @GetMapping("/import/{taskId}/error-report")
+    public void downloadErrorReport(
+            @ApiParam("任务ID") @PathVariable String taskId,
+            javax.servlet.http.HttpServletResponse response) throws IOException {
+        byte[] data = cartImportExportService.downloadErrorReport(taskId);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=import_error_" + taskId + ".xlsx");
+        response.setContentLength(data.length);
+        try (java.io.OutputStream out = response.getOutputStream()) {
+            out.write(data);
+            out.flush();
+        }
+    }
+
+    @ApiOperation("导出购物车商品明细为Excel")
+    @GetMapping("/export")
+    public void exportCart(javax.servlet.http.HttpServletResponse response) throws IOException {
+        byte[] data = cartImportExportService.exportCart();
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=cart_items_" + System.currentTimeMillis() + ".xlsx");
+        response.setContentLength(data.length);
+        try (java.io.OutputStream out = response.getOutputStream()) {
+            out.write(data);
+            out.flush();
+        }
     }
 
     @Resource
