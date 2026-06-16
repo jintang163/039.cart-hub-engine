@@ -63,6 +63,10 @@ public class CartItem implements Serializable {
 
     private Integer sortWeight;
 
+    private Boolean priceDropSubscribed;
+
+    private BigDecimal priceDropTargetPrice;
+
     private Map<String, Object> extInfo;
 
     public void recalculate() {

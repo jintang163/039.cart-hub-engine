@@ -37,6 +37,7 @@ public class CartController {
     private final PromotionEngineService promotionEngineService;
     private final CartRecommendService cartRecommendService;
     private final CartExpireCleanupService cartExpireCleanupService;
+    private final CartPriceDropNotifyService cartPriceDropNotifyService;
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
@@ -374,6 +375,46 @@ public class CartController {
         String bizType = com.carhub.common.context.CartContextHolder.getBizType();
         String userId = com.carhub.common.context.CartContextHolder.getUserId();
         return R.ok(cartExpireCleanupService.getExpireInfo(tenantId, bizType, userId));
+    }
+
+    @ApiOperation("设置商品降价提醒订阅")
+    @PostMapping("/price-drop/subscribe")
+    public R<Boolean> subscribePriceDrop(
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
+            @ApiParam("目标价格（达到该价格时必提醒）") @RequestParam(required = false) BigDecimal targetPrice) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartPriceDropNotifyService.subscribe(tenantId, bizType, userId, skuId, targetPrice));
+    }
+
+    @ApiOperation("取消商品降价提醒订阅")
+    @DeleteMapping("/price-drop/unsubscribe")
+    public R<Boolean> unsubscribePriceDrop(
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartPriceDropNotifyService.unsubscribe(tenantId, bizType, userId, skuId));
+    }
+
+    @ApiOperation("批量取消降价提醒订阅（不传SKU列表则取消全部）")
+    @DeleteMapping("/price-drop/unsubscribe/batch")
+    public R<Boolean> batchUnsubscribePriceDrop(
+            @ApiParam("SKU ID 列表") @RequestBody(required = false) List<String> skuIds) {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartPriceDropNotifyService.batchUnsubscribe(tenantId, bizType, userId, skuIds));
+    }
+
+    @ApiOperation("获取我的降价提醒订阅列表（含实时价格对比）")
+    @GetMapping("/price-drop/info")
+    public R<Map<String, Object>> getPriceDropInfo() {
+        String tenantId = com.carhub.common.context.CartContextHolder.getTenantId();
+        String bizType = com.carhub.common.context.CartContextHolder.getBizType();
+        String userId = com.carhub.common.context.CartContextHolder.getUserId();
+        return R.ok(cartPriceDropNotifyService.getPriceDropInfo(tenantId, bizType, userId));
     }
 
     @Resource

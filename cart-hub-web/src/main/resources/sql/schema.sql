@@ -58,6 +58,23 @@ CREATE TABLE `t_biz_config` (
     `notify_channels`    VARCHAR(128) NOT NULL DEFAULT 'wechat,sms' COMMENT '通知渠道(逗号分隔)',
     `archive_enable`     TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用归档:0-否,1-是',
     `archive_retention_days`INT       NOT NULL DEFAULT 180 COMMENT '归档保留天数',
+    `cleanup_notify_enable`TINYINT    NOT NULL DEFAULT 1 COMMENT '清理通知是否启用:0-否,1-是',
+    `cleanup_notify_channels`VARCHAR(128) NOT NULL DEFAULT 'wechat,sms' COMMENT '清理通知渠道(逗号分隔)',
+    `cleanup_wechat_template_id`VARCHAR(128) DEFAULT NULL COMMENT '清理微信模板ID',
+    `cleanup_sms_template_id`VARCHAR(128) DEFAULT NULL COMMENT '清理短信模板ID',
+    `cleanup_notify_api_url`VARCHAR(256) DEFAULT NULL COMMENT '清理通知API地址',
+    `price_drop_enable`  TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用降价提醒:0-否,1-是',
+    `price_drop_cron`    VARCHAR(64)  NOT NULL DEFAULT '0 0 */3 * * ?' COMMENT '降价提醒扫描cron',
+    `price_drop_min_percent`INT       NOT NULL DEFAULT 5 COMMENT '最小降价比例(%)',
+    `price_drop_min_amount`DECIMAL(18,2)NOT NULL DEFAULT 1.00 COMMENT '最小降价金额',
+    `price_drop_auto_update_cart`TINYINT NOT NULL DEFAULT 1 COMMENT '降价时是否自动更新购物车价格:0-否,1-是',
+    `price_drop_subscription_days`INT  NOT NULL DEFAULT 180 COMMENT '订阅过期时间(天)',
+    `price_drop_notify_cooldown_hours`INT NOT NULL DEFAULT 24 COMMENT '重复通知冷却时间(小时)',
+    `price_drop_notify_enable`TINYINT  NOT NULL DEFAULT 1 COMMENT '降价通知是否启用:0-否,1-是',
+    `price_drop_notify_channels`VARCHAR(128) NOT NULL DEFAULT 'wechat,sms' COMMENT '降价通知渠道(逗号分隔)',
+    `price_drop_wechat_template_id`VARCHAR(128) DEFAULT NULL COMMENT '降价微信模板ID',
+    `price_drop_sms_template_id`VARCHAR(128) DEFAULT NULL COMMENT '降价短信模板ID',
+    `price_drop_notify_api_url`VARCHAR(256) DEFAULT NULL COMMENT '降价通知API地址',
     `discount_enable`    TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用优惠:0-否,1-是',
     `description`        VARCHAR(512) DEFAULT NULL COMMENT '描述',
     `ext_config`         JSON         DEFAULT NULL COMMENT '扩展配置',
@@ -671,3 +688,67 @@ CREATE TABLE `t_cart_item_archive` (
     KEY `idx_archive_time` (`archive_time`),
     KEY `idx_sku_id` (`sku_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='购物车商品项归档表(冷存储)';
+
+-- ============================================================
+-- 19. 降价提醒订阅表
+-- ============================================================
+DROP TABLE IF EXISTS `t_cart_price_drop_subscribe`;
+CREATE TABLE `t_cart_price_drop_subscribe` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`       VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`        VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`         VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `sku_id`          VARCHAR(128) NOT NULL COMMENT '商品SKU ID',
+    `spu_id`          VARCHAR(128) DEFAULT NULL COMMENT '商品SPU ID',
+    `item_name`       VARCHAR(256) DEFAULT NULL COMMENT '商品名称(订阅时快照)',
+    `item_image`      VARCHAR(512) DEFAULT NULL COMMENT '商品图片(订阅时快照)',
+    `origin_price`    DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '订阅时原价',
+    `target_price`    DECIMAL(18,2)DEFAULT NULL COMMENT '目标价格(必达提醒阈值)',
+    `status`          TINYINT      NOT NULL DEFAULT 1 COMMENT '状态:0-已取消,1-生效中,2-已达成,3-已过期',
+    `expire_time`     DATETIME     DEFAULT NULL COMMENT '订阅过期时间',
+    `notify_count`    INT          NOT NULL DEFAULT 0 COMMENT '已通知次数',
+    `last_notify_time`DATETIME     DEFAULT NULL COMMENT '上次通知时间',
+    `last_notify_price`DECIMAL(18,2)DEFAULT NULL COMMENT '上次通知时价格',
+    `reach_time`      DATETIME     DEFAULT NULL COMMENT '达到目标价时间',
+    `reach_price`     DECIMAL(18,2)DEFAULT NULL COMMENT '达到目标价时的价格',
+    `ext_info`        JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted`         TINYINT      NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删除,1-已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_tenant_biz_user_sku` (`tenant_id`, `biz_type`, `user_id`, `sku_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_sku_id` (`sku_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_expire_time` (`expire_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降价提醒订阅表';
+
+-- ============================================================
+-- 20. 降价提醒通知日志表
+-- ============================================================
+DROP TABLE IF EXISTS `t_cart_price_drop_notify_log`;
+CREATE TABLE `t_cart_price_drop_notify_log` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `tenant_id`       VARCHAR(64)  NOT NULL COMMENT '租户ID',
+    `biz_type`        VARCHAR(64)  NOT NULL COMMENT '业务类型',
+    `user_id`         VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `sku_id`          VARCHAR(128) NOT NULL COMMENT '商品SKU ID',
+    `subscribe_id`    BIGINT       DEFAULT NULL COMMENT '订阅ID',
+    `channel`         VARCHAR(32)  NOT NULL COMMENT '通知渠道:wechat/sms/app',
+    `old_price`       DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '降价前价格',
+    `new_price`       DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '降价后价格',
+    `drop_amount`     DECIMAL(18,2)NOT NULL DEFAULT 0.00 COMMENT '降价金额',
+    `drop_percent`    DECIMAL(10,4)NOT NULL DEFAULT 0.0000 COMMENT '降价比例(%)',
+    `target_price`    DECIMAL(18,2)DEFAULT NULL COMMENT '目标价格',
+    `hit_target`      TINYINT      NOT NULL DEFAULT 0 COMMENT '是否达到目标价:0-否,1-是',
+    `template_id`     VARCHAR(128) DEFAULT NULL COMMENT '消息模板ID',
+    `notify_status`   TINYINT      NOT NULL DEFAULT 1 COMMENT '通知状态:0-失败,1-成功,2-发送中',
+    `error_msg`       VARCHAR(512) DEFAULT NULL COMMENT '失败原因',
+    `ext_info`        JSON         DEFAULT NULL COMMENT '扩展信息',
+    `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_tenant_biz_user` (`tenant_id`, `biz_type`, `user_id`),
+    KEY `idx_sku_id` (`sku_id`),
+    KEY `idx_create_time` (`create_time`),
+    KEY `idx_notify_status` (`notify_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降价提醒通知日志表';

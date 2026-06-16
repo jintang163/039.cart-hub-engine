@@ -307,6 +307,44 @@
             return result;
         }
 
+        async subscribePriceDrop(skuId, targetPrice) {
+            if (!skuId) throw new Error('skuId 不能为空');
+            const qs = new URLSearchParams();
+            qs.set('skuId', skuId);
+            if (targetPrice != null) qs.set('targetPrice', String(targetPrice));
+            const result = await this._request('/api/cart/price-drop/subscribe?' + qs.toString(), {
+                method: 'POST'
+            });
+            this._emit('priceDropSubscribed', { skuId, targetPrice, result });
+            return result;
+        }
+
+        async unsubscribePriceDrop(skuId) {
+            if (!skuId) throw new Error('skuId 不能为空');
+            const qs = new URLSearchParams();
+            qs.set('skuId', skuId);
+            const result = await this._request('/api/cart/price-drop/unsubscribe?' + qs.toString(), {
+                method: 'DELETE'
+            });
+            this._emit('priceDropUnsubscribed', { skuId, result });
+            return result;
+        }
+
+        async batchUnsubscribePriceDrop(skuIds) {
+            const result = await this._request('/api/cart/price-drop/unsubscribe/batch', {
+                method: 'DELETE',
+                body: skuIds || []
+            });
+            this._emit('priceDropBatchUnsubscribed', { skuIds, result });
+            return result;
+        }
+
+        async getPriceDropInfo() {
+            const result = await this._request('/api/cart/price-drop/info');
+            this._emit('priceDropInfoLoaded', result);
+            return result;
+        }
+
         async mergeCart(options = {}) {
             const localItems = this._localCache.items;
             const body = Object.assign({

@@ -26,6 +26,11 @@ export declare class CartHubSDK {
     getCartSummary(): Promise<CartSummary>;
     getExpireInfo(): Promise<CartExpireInfo>;
 
+    subscribePriceDrop(skuId: string, targetPrice?: number): Promise<boolean>;
+    unsubscribePriceDrop(skuId: string): Promise<boolean>;
+    batchUnsubscribePriceDrop(skuIds?: string[]): Promise<boolean>;
+    getPriceDropInfo(): Promise<PriceDropInfo>;
+
     mergeCart(options?: MergeCartOptions): Promise<CartVO>;
 
     createShare(options?: CreateShareOptions): Promise<ShareResult>;
@@ -144,6 +149,8 @@ export interface CartItemVO {
     invalidMessage?: string;
     remark?: string;
     sortWeight?: number;
+    priceDropSubscribed?: boolean;
+    priceDropTargetPrice?: number;
     extInfo?: Record<string, any>;
 }
 
@@ -428,6 +435,9 @@ export interface CartVO {
     isExpiring?: boolean;
     isExpired?: boolean;
     hasExpireReminded?: boolean;
+    priceDropSubscriptionCount?: number;
+    priceDropSubscriptions?: PriceDropSubscribeDetail[];
+    priceDropEnabled?: boolean;
 }
 
 export interface CartExpireInfo {
@@ -441,6 +451,36 @@ export interface CartExpireInfo {
     isExpired: boolean;
     hasReminded: boolean;
     itemCount?: number;
+}
+
+export interface PriceDropSubscribe {
+    skuId: string;
+    targetPrice?: number;
+    createTs: number;
+}
+
+export interface PriceDropSubscribeDetail {
+    skuId: string;
+    targetPrice?: number;
+    createTs?: number;
+    itemName?: string;
+    itemImage?: string;
+    currentPrice?: number;
+    priceGap?: number;
+    gapPercent?: number;
+    reachedTarget?: boolean;
+    notified?: boolean;
+}
+
+export interface PriceDropInfo {
+    subscriptions: PriceDropSubscribe[];
+    subscriptionCount: number;
+    details: PriceDropSubscribeDetail[];
+    enabled: boolean;
+    notifyEnabled: boolean;
+    subscriptionExpireDays: number;
+    minDropPercent?: number;
+    minDropAmount?: number;
 }
 
 export interface RecommendOptions {

@@ -20,6 +20,7 @@ public class CartAdminController {
     private final BizConfigService bizConfigService;
     private final CartStatisticsService cartStatisticsService;
     private final CartExpireCleanupService cartExpireCleanupService;
+    private final CartPriceDropNotifyService cartPriceDropNotifyService;
 
     @ApiOperation("获取购物车使用统计概览")
     @GetMapping("/statistics/overview")
@@ -92,6 +93,31 @@ public class CartAdminController {
             @RequestParam(required = false, defaultValue = "default") String tenantId,
             @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
         return R.ok(cartExpireCleanupService.getExpireInfo(tenantId, bizType, userId));
+    }
+
+    @ApiOperation("手动触发降价提醒扫描任务")
+    @PostMapping("/price-drop/trigger")
+    public R<String> triggerPriceDropScan() {
+        cartPriceDropNotifyService.triggerManualScan();
+        return R.ok("降价提醒扫描任务已触发");
+    }
+
+    @ApiOperation("获取降价提醒任务统计")
+    @GetMapping("/price-drop/statistics")
+    public R<Map<String, Object>> getPriceDropStatistics(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false, defaultValue = "default") String tenantId,
+            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+        return R.ok(cartPriceDropNotifyService.getStatistics(tenantId, bizType, date));
+    }
+
+    @ApiOperation("获取指定用户的降价提醒订阅信息")
+    @GetMapping("/price-drop/info/{userId}")
+    public R<Map<String, Object>> getUserPriceDropInfo(
+            @PathVariable String userId,
+            @RequestParam(required = false, defaultValue = "default") String tenantId,
+            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+        return R.ok(cartPriceDropNotifyService.getPriceDropInfo(tenantId, bizType, userId));
     }
 
 }

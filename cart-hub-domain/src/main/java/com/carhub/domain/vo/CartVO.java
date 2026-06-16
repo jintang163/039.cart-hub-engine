@@ -95,4 +95,10 @@ public class CartVO implements Serializable {
 
     private Boolean hasExpireReminded;
 
+    private Integer priceDropSubscriptionCount;
+
+    private java.util.List<Map<String, Object>> priceDropSubscriptions;
+
+    private Boolean priceDropEnabled;
+
 }

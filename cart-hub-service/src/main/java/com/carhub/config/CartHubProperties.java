@@ -24,6 +24,7 @@ public class CartHubProperties {
     private Share share = new Share();
     private Checkout checkout = new Checkout();
     private Cleanup cleanup = new Cleanup();
+    private PriceDrop priceDrop = new PriceDrop();
 
     @Data
     public static class Redis {
@@ -126,6 +127,23 @@ public class CartHubProperties {
         private String notifyApiUrl;
         private Boolean archiveToDb = true;
         private Integer archiveRetentionDays = 180;
+    }
+
+    @Data
+    public static class PriceDrop {
+        private Boolean enable = true;
+        private String cron = "0 0 */3 * * ?";
+        private Integer batchSize = 200;
+        private BigDecimal minDropPercent = new BigDecimal("5");
+        private BigDecimal minDropAmount = BigDecimal.ONE;
+        private Boolean enableNotification = true;
+        private String notifyChannels = "wechat,sms";
+        private String wechatTemplateId;
+        private String smsTemplateId;
+        private String notifyApiUrl;
+        private Boolean autoUpdateCartPrice = true;
+        private Integer subscriptionExpireDays = 180;
+        private Integer notifyCooldownHours = 24;
     }
 
     @Bean

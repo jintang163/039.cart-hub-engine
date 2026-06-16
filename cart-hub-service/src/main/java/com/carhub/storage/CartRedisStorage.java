@@ -605,6 +605,118 @@ public class CartRedisStorage {
         return updated;
     }
 
+    public boolean setPriceDropSubscribe(String tenantId, String bizType, String userId, String skuId,
+                                          BigDecimal targetPrice, Long createTs) {
+        String userKey = RedisKeyConstant.buildPriceDropUserKey(tenantId, bizType, userId);
+        String skuKey = RedisKeyConstant.buildPriceDropSkuKey(tenantId, bizType, skuId);
+        int expireDays = resolveSubscriptionExpireDays(tenantId, bizType);
+        String json = JsonUtil.toJson(PriceDropSubscribe.builder()
+                .skuId(skuId)
+                .targetPrice(targetPrice)
+                .createTs(createTs)
+                .build());
+        stringRedisTemplate.opsForHash().put(userKey, skuId, json);
+        stringRedisTemplate.expire(userKey, Duration.ofDays(expireDays));
+        String userRef = tenantId + ":" + bizType + ":" + userId;
+        stringRedisTemplate.opsForSet().add(skuKey, userRef);
+        stringRedisTemplate.expire(skuKey, Duration.ofDays(expireDays));
+        return true;
+    }
+
+    public boolean cancelPriceDropSubscribe(String tenantId, String bizType, String userId, String skuId) {
+        String userKey = RedisKeyConstant.buildPriceDropUserKey(tenantId, bizType, userId);
+        String skuKey = RedisKeyConstant.buildPriceDropSkuKey(tenantId, bizType, skuId);
+        stringRedisTemplate.opsForHash().delete(userKey, skuId);
+        String userRef = tenantId + ":" + bizType + ":" + userId;
+        stringRedisTemplate.opsForSet().remove(skuKey, userRef);
+        stringRedisTemplate.delete(RedisKeyConstant.buildPriceDropNotifyKey(tenantId, bizType, userId, skuId));
+        return true;
+    }
+
+    public List<PriceDropSubscribe> listPriceDropSubscribes(String tenantId, String bizType, String userId) {
+        String userKey = RedisKeyConstant.buildPriceDropUserKey(tenantId, bizType, userId);
+        List<Object> values = stringRedisTemplate.opsForHash().values(userKey);
+        List<PriceDropSubscribe> result = new ArrayList<>();
+        for (Object v : values) {
+            try {
+                PriceDropSubscribe sub = JsonUtil.fromJson(String.valueOf(v), PriceDropSubscribe.class);
+                if (sub != null) result.add(sub);
+            } catch (Exception ignored) {
+            }
+        }
+        return result;
+    }
+
+    public boolean isPriceDropNotified(String tenantId, String bizType, String userId, String skuId) {
+        String key = RedisKeyConstant.buildPriceDropNotifyKey(tenantId, bizType, userId, skuId);
+        return Boolean.TRUE.equals(stringRedisTemplate.hasKey(key));
+    }
+
+    public void markPriceDropNotified(String tenantId, String bizType, String userId, String skuId, int cooldownHours) {
+        String key = RedisKeyConstant.buildPriceDropNotifyKey(tenantId, bizType, userId, skuId);
+        stringRedisTemplate.opsForValue().set(key, String.valueOf(System.currentTimeMillis()),
+                Duration.ofHours(Math.max(cooldownHours, 1)));
+    }
+
+    public int resolveSubscriptionExpireDays(String tenantId, String bizType) {
+        try {
+            BizConfigEntity cfg = bizConfigService.getConfig(tenantId, bizType);
+            if (cfg != null && cfg.getPriceDropSubscriptionDays() != null && cfg.getPriceDropSubscriptionDays() > 0) {
+                return cfg.getPriceDropSubscriptionDays();
+            }
+        } catch (Exception e) {
+            log.warn("Resolve subscription expire days from biz config failed, fallback to default", e);
+        }
+        if (cartHubProperties.getPriceDrop() != null && cartHubProperties.getPriceDrop().getSubscriptionExpireDays() != null) {
+            return cartHubProperties.getPriceDrop().getSubscriptionExpireDays();
+        }
+        return 180;
+    }
+
+    public List<String> scanAllSubscribedSkuIds(String tenantId, String bizType, int limit) {
+        String pattern = RedisKeyConstant.buildPriceDropSkuKey(tenantId, bizType, "*");
+        List<String> result = new ArrayList<>();
+        int count = 0;
+        for (String key : redissonClient.getKeys().getKeysByPattern(pattern, 100)) {
+            if (count >= limit) break;
+            String prefix = RedisKeyConstant.buildPriceDropSkuKey(tenantId, bizType, "");
+            prefix = prefix.substring(0, prefix.length() - 2);
+            if (key.length() > prefix.length()) {
+                result.add(key.substring(prefix.length()));
+                count++;
+            }
+        }
+        return result;
+    }
+
+    public Set<String> getSubscribedUsersForSku(String tenantId, String bizType, String skuId) {
+        String skuKey = RedisKeyConstant.buildPriceDropSkuKey(tenantId, bizType, skuId);
+        Set<String> refs = stringRedisTemplate.opsForSet().members(skuKey);
+        return refs == null ? new HashSet<>() : refs;
+    }
+
+    public PriceDropSubscribe getPriceDropSubscribe(String tenantId, String bizType, String userId, String skuId) {
+        String userKey = RedisKeyConstant.buildPriceDropUserKey(tenantId, bizType, userId);
+        Object val = stringRedisTemplate.opsForHash().get(userKey, skuId);
+        if (val == null) return null;
+        try {
+            return JsonUtil.fromJson(String.valueOf(val), PriceDropSubscribe.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PriceDropSubscribe implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String skuId;
+        private BigDecimal targetPrice;
+        private Long createTs;
+    }
+
     @Data
     @Builder
     @NoArgsConstructor

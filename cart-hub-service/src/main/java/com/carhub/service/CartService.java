@@ -43,6 +43,7 @@ public class CartService {
     private final SensitiveWordFilterService sensitiveWordFilterService;
     private final PromotionEngineService promotionEngineService;
     private final CartExpireCleanupService cartExpireCleanupService;
+    private final CartPriceDropNotifyService cartPriceDropNotifyService;
 
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -565,6 +566,34 @@ public class CartService {
             builder.hasExpireReminded((Boolean) expireInfo.get("hasReminded"));
         } catch (Exception e) {
             log.warn("get expire info failed", e);
+        }
+
+        try {
+            Map<String, Object> priceDropInfo = cartPriceDropNotifyService.getPriceDropInfo(
+                    cart.getTenantId(), cart.getBizType(), cart.getUserId());
+            builder.priceDropEnabled((Boolean) priceDropInfo.get("enabled"));
+            builder.priceDropSubscriptionCount((Integer) priceDropInfo.get("subscriptionCount"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> subDetails = (List<Map<String, Object>>) priceDropInfo.get("details");
+            builder.priceDropSubscriptions(subDetails);
+            if (subDetails != null && cart.getItems() != null) {
+                Map<String, BigDecimal> targetMap = new HashMap<>();
+                for (Map<String, Object> d : subDetails) {
+                    String sid = (String) d.get("skuId");
+                    Object tp = d.get("targetPrice");
+                    if (sid != null && tp != null) {
+                        targetMap.put(sid, (BigDecimal) tp);
+                    }
+                }
+                for (CartItem item : cart.getItems()) {
+                    if (targetMap.containsKey(item.getSkuId())) {
+                        item.setPriceDropSubscribed(true);
+                        item.setPriceDropTargetPrice(targetMap.get(item.getSkuId()));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("get price drop info failed", e);
         }
 
         return builder.build();

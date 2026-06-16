@@ -112,4 +112,30 @@ public class RedisKeyConstant {
         return String.format(CART_CLEANUP_STAT_KEY, date);
     }
 
+    public static final String CART_PRICE_DROP_USER_KEY = CART_PREFIX + "price_drop:{%s}:{%s}:{%s}";
+
+    public static final String CART_PRICE_DROP_SKU_KEY = CART_PREFIX + "price_drop:sku:{%s}:{%s}:{%s}";
+
+    public static final String CART_PRICE_DROP_NOTIFY_KEY = CART_PREFIX + "price_drop:notified:{%s}:{%s}:{%s}:{%s}";
+
+    public static final String CART_PRICE_DROP_LOCK_KEY = CART_PREFIX + "price_drop:lock";
+
+    public static final String CART_PRICE_DROP_STAT_KEY = CART_PREFIX + "price_drop:stat:{%s}";
+
+    public static String buildPriceDropUserKey(String tenantId, String bizType, String userId) {
+        return String.format(CART_PRICE_DROP_USER_KEY, tenantId, bizType, userId);
+    }
+
+    public static String buildPriceDropSkuKey(String tenantId, String bizType, String skuId) {
+        return String.format(CART_PRICE_DROP_SKU_KEY, tenantId, bizType, skuId);
+    }
+
+    public static String buildPriceDropNotifyKey(String tenantId, String bizType, String userId, String skuId) {
+        return String.format(CART_PRICE_DROP_NOTIFY_KEY, tenantId, bizType, userId, skuId);
+    }
+
+    public static String buildPriceDropStatKey(String date) {
+        return String.format(CART_PRICE_DROP_STAT_KEY, date);
+    }
+
 }

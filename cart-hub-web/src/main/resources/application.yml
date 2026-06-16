@@ -135,6 +135,20 @@ cart-hub:
     notify-api-url: http://localhost:8081/notify/send
     archive-to-db: true
     archive-retention-days: 180
+  price-drop:
+    enable: true
+    cron: "0 0 */3 * * ?"
+    batch-size: 200
+    min-drop-percent: 5
+    min-drop-amount: 1
+    enable-notification: true
+    notify-channels: wechat,sms
+    wechat-template-id: CART_PRICE_DROP_TEMPLATE
+    sms-template-id: SMS_CART_PRICE_DROP
+    notify-api-url: http://localhost:8081/notify/send
+    auto-update-cart-price: true
+    subscription-expire-days: 180
+    notify-cooldown-hours: 24
 
 knife4j:
   enable: true

@@ -97,6 +97,69 @@ public class CartNotificationService {
         }
     }
 
+    @Async
+    public void sendPriceDropNotification(String tenantId, String bizType, String userId,
+                                          String skuId, String itemName, String itemImage,
+                                          BigDecimal oldPrice, BigDecimal newPrice,
+                                          BigDecimal targetPrice, BigDecimal dropAmount,
+                                          BigDecimal dropPercent, String notifyChannels,
+                                          String notifyApiUrl, String wechatTemplateId, String smsTemplateId) {
+        if (StringUtils.isBlank(notifyChannels) || StringUtils.isBlank(notifyApiUrl)) {
+            return;
+        }
+        try {
+            Map<String, Object> baseParams = new HashMap<>();
+            baseParams.put("skuId", skuId);
+            baseParams.put("itemName", itemName);
+            baseParams.put("itemImage", itemImage);
+            baseParams.put("oldPrice", oldPrice);
+            baseParams.put("newPrice", newPrice);
+            baseParams.put("targetPrice", targetPrice);
+            baseParams.put("dropAmount", dropAmount);
+            baseParams.put("dropPercent", dropPercent);
+            baseParams.put("now", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+
+            String[] channelArray = notifyChannels.split(",");
+            for (String channel : channelArray) {
+                try {
+                    Map<String, Object> payload = buildPriceDropPayload(tenantId, bizType, userId,
+                            "cart_price_drop_notification", baseParams);
+                    switch (channel.trim().toLowerCase()) {
+                        case "wechat":
+                            payload.put("channel", "wechat");
+                            payload.put("templateId", wechatTemplateId);
+                            doSendNotification(notifyApiUrl, payload);
+                            break;
+                        case "sms":
+                            payload.put("channel", "sms");
+                            payload.put("templateId", smsTemplateId);
+                            doSendNotification(notifyApiUrl, payload);
+                            break;
+                        default:
+                            log.warn("Unknown notification channel: {}", channel);
+                    }
+                } catch (Exception e) {
+                    log.error("Send {} price drop notification failed, userId={}, skuId={}", channel, userId, skuId, e);
+                }
+            }
+            log.info("Price drop notification sent: tenantId={}, bizType={}, userId={}, skuId={}, drop={}",
+                    tenantId, bizType, userId, skuId, dropAmount);
+        } catch (Exception e) {
+            log.error("Send price drop notification error, userId={}, skuId={}", userId, skuId, e);
+        }
+    }
+
+    private Map<String, Object> buildPriceDropPayload(String tenantId, String bizType, String userId,
+                                                       String templateType, Map<String, Object> templateParams) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tenantId", tenantId);
+        payload.put("bizType", bizType);
+        payload.put("userId", userId);
+        payload.put("templateType", templateType);
+        payload.put("templateParams", templateParams);
+        return payload;
+    }
+
     private void sendWechatNotification(String tenantId, String bizType, String userId,
                                         Cart cart, int daysBeforeExpire) {
         String notifyUrl = cartHubProperties.getCleanup().getNotifyApiUrl();

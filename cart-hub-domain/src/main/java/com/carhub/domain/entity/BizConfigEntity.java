@@ -61,6 +61,28 @@ public class BizConfigEntity implements Serializable {
 
     private String cleanupNotifyApiUrl;
 
+    private Integer priceDropEnable;
+
+    private Integer priceDropMinPercent;
+
+    private java.math.BigDecimal priceDropMinAmount;
+
+    private Integer priceDropAutoUpdateCart;
+
+    private Integer priceDropSubscriptionDays;
+
+    private Integer priceDropNotifyCooldownHours;
+
+    private Integer priceDropNotifyEnable;
+
+    private String priceDropNotifyChannels;
+
+    private String priceDropWechatTemplateId;
+
+    private String priceDropSmsTemplateId;
+
+    private String priceDropNotifyApiUrl;
+
     private String description;
 
     private String extConfig;
