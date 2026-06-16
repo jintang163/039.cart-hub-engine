@@ -4,14 +4,13 @@ import com.carhub.common.context.CartContextHolder;
 import com.carhub.common.exception.BusinessException;
 import com.carhub.common.result.ResultCode;
 import com.carhub.common.util.JsonUtil;
+import com.carhub.domain.dto.AddCartItemDTO;
 import com.carhub.domain.dto.FavoriteItemDTO;
 import com.carhub.domain.entity.FavoriteItemEntity;
-import com.carhub.domain.model.CartItem;
 import com.carhub.domain.model.FavoriteItem;
 import com.carhub.domain.vo.CartVO;
 import com.carhub.domain.vo.FavoriteVO;
 import com.carhub.mapper.FavoriteItemMapper;
-import com.carhub.storage.CartRedisStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 public class FavoriteService {
 
     private final FavoriteItemMapper favoriteItemMapper;
-    private final CartRedisStorage cartRedisStorage;
+    private final CartService cartService;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -218,6 +217,7 @@ public class FavoriteService {
         Map<String, FavoriteItemEntity> entityMap = entities.stream()
                 .collect(Collectors.toMap(FavoriteItemEntity::getSkuId, e -> e));
 
+        List<String> successSkuIds = new ArrayList<>();
         int successCount = 0;
         int failCount = 0;
 
@@ -229,7 +229,7 @@ public class FavoriteService {
                     continue;
                 }
 
-                CartItem cartItem = CartItem.builder()
+                AddCartItemDTO addDTO = AddCartItemDTO.builder()
                         .skuId(entity.getSkuId())
                         .spuId(entity.getSpuId())
                         .categoryId(entity.getCategoryId())
@@ -241,49 +241,32 @@ public class FavoriteService {
                         .originalPrice(entity.getOriginalPrice())
                         .quantity(1)
                         .selected(true)
-                        .onShelf(entity.getOnShelf() != null && entity.getOnShelf() == 1)
-                        .priceChanged(entity.getPriceChanged() != null && entity.getPriceChanged() == 1)
-                        .addTime(System.currentTimeMillis())
                         .addSource("favorite")
                         .build();
 
-                cartItem.recalculate();
-                cartRedisStorage.addItem(tenantId, bizType, userId, cartItem);
+                cartService.addItem(addDTO);
+                successSkuIds.add(skuId);
                 successCount++;
 
-                log.info("Favorite to cart: userId={}, skuId={}", userId, skuId);
+                log.info("Favorite to cart success: userId={}, skuId={}", userId, skuId);
             } catch (Exception e) {
                 failCount++;
                 log.warn("Favorite to cart failed: skuId={}, error={}", skuId, e.getMessage());
             }
         }
 
-        if (removeFromFavorite && successCount > 0) {
-            List<String> successSkuIds = new ArrayList<>();
-            for (String skuId : skuIds) {
-                if (entityMap.containsKey(skuId)) {
-                    successSkuIds.add(skuId);
-                }
-            }
-            if (!successSkuIds.isEmpty()) {
-                favoriteItemMapper.deleteBySkus(tenantId, bizType, userId, successSkuIds);
-                log.info("Removed from favorite after adding to cart: userId={}, count={}", userId, successSkuIds.size());
-            }
+        if (removeFromFavorite && !successSkuIds.isEmpty()) {
+            favoriteItemMapper.deleteBySkus(tenantId, bizType, userId, successSkuIds);
+            log.info("Removed from favorite after adding to cart: userId={}, count={}", userId, successSkuIds.size());
         }
 
         if (successCount == 0) {
             throw new BusinessException("加入购物车失败，请检查商品是否有效");
         }
 
-        com.carhub.domain.model.Cart cart = cartRedisStorage.getCart(tenantId, bizType, userId);
-        CartVO cartVO = CartVO.builder().build();
-        cartVO.setCart(cart);
-        cartVO.setItemCount(cart.getItemCount());
-        cartVO.setTotalQuantity(cart.getTotalQuantity());
-        cartVO.setTotalAmount(cart.getTotalAmount());
+        CartVO cartVO = cartService.getCartSimple();
         cartVO.setAddSuccessCount(successCount);
         cartVO.setAddFailCount(failCount);
-        cartVO.setUpdateTime(System.currentTimeMillis());
 
         return cartVO;
     }
