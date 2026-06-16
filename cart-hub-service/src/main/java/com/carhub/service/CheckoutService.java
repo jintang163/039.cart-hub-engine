@@ -371,42 +371,84 @@ public class CheckoutService {
     @Scheduled(fixedDelay = 60000)
     public void expireCheckoutSnapshots() {
         try {
-            int count = checkoutSnapshotMapper.expireOutdatedSnapshots(LocalDateTime.now());
-            if (count > 0) {
-                log.info("Expired {} checkout snapshots", count);
-            }
-
-            if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getEnableStockLock())) {
-                releaseExpiredStock();
-            }
+            processExpiredSnapshots();
         } catch (Exception e) {
             log.error("Expire checkout snapshots task failed", e);
         }
     }
 
-    private void releaseExpiredStock() {
-        List<String> expiredTokens = checkoutSnapshotMapper.findExpiredTokensNeedRelease(
-                LocalDateTime.now(), 100);
+    private void processExpiredSnapshots() {
+        LocalDateTime now = LocalDateTime.now();
+        int processedCount = 0;
 
-        for (String token : expiredTokens) {
-            try {
-                CheckoutSnapshotEntity entity = checkoutSnapshotMapper.findByToken(token);
-                if (entity != null && StringUtils.isNotBlank(entity.getStockLockCode())) {
-                    releaseStock(entity.getStockLockCode());
-                    entity.setStockStatus(3);
-                    checkoutSnapshotMapper.updateById(entity);
-                    log.info("Released stock for expired checkout: {}", token);
+        while (true) {
+            List<String> expiredTokens = checkoutSnapshotMapper.findExpiredTokens(now, 100);
+            if (expiredTokens == null || expiredTokens.isEmpty()) {
+                break;
+            }
+
+            for (String token : expiredTokens) {
+                try {
+                    processSingleExpiredSnapshot(token);
+                    processedCount++;
+                } catch (Exception e) {
+                    log.warn("Process expired snapshot failed, token={}", token, e);
                 }
-            } catch (Exception e) {
-                log.warn("Release expired stock failed for token: {}", token, e);
+            }
+
+            if (expiredTokens.size() < 100) {
+                break;
             }
         }
+
+        if (processedCount > 0) {
+            log.info("Expired {} checkout snapshots", processedCount);
+        }
+    }
+
+    private void processSingleExpiredSnapshot(String token) {
+        CheckoutSnapshotEntity entity = checkoutSnapshotMapper.findByToken(token);
+        if (entity == null || entity.getStatus() != 0) {
+            return;
+        }
+
+        if (entity.getExpireTime() == null || entity.getExpireTime().isAfter(LocalDateTime.now())) {
+            return;
+        }
+
+        if (entity.getStockStatus() != null && entity.getStockStatus() == 1
+                && StringUtils.isNotBlank(entity.getStockLockCode())) {
+            try {
+                releaseStock(entity.getStockLockCode());
+                entity.setStockStatus(3);
+                log.info("Released stock for expired checkout: {}, lockCode={}", token, entity.getStockLockCode());
+            } catch (Exception e) {
+                log.warn("Release stock failed for expired checkout: {}", token, e);
+            }
+        }
+
+        entity.setStatus(3);
+        checkoutSnapshotMapper.updateById(entity);
+
+        try {
+            notifyUserExpired(entity);
+        } catch (Exception e) {
+            log.warn("Notify user expired failed for checkout: {}", token, e);
+        }
+
+        evictCheckoutCache(token);
+        removeUserCheckoutToken(entity.getTenantId(), entity.getBizType(), entity.getUserId(), token);
     }
 
     private String lockStock(String tenantId, String bizType, String userId,
                              List<CartItem> items, LocalDateTime expireTime) {
+        if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getMockStock())
+                && StringUtils.isBlank(cartHubProperties.getCheckout().getStockLockUrl())) {
+            return mockLockStock(tenantId, bizType, userId, items, expireTime);
+        }
+
         if (StringUtils.isBlank(cartHubProperties.getCheckout().getStockLockUrl())) {
-            log.warn("Stock lock URL not configured, skip stock lock");
+            log.warn("Stock lock URL not configured and mock stock disabled, skip stock lock");
             return null;
         }
 
@@ -438,7 +480,9 @@ public class CheckoutService {
 
             Map<String, Object> body = response.getBody();
             if (body != null && Boolean.TRUE.equals(body.get("success"))) {
-                return (String) body.get("lockCode");
+                String lockCode = (String) body.get("lockCode");
+                log.info("Stock locked successfully, lockCode={}, userId={}", lockCode, userId);
+                return lockCode;
             } else {
                 String message = body != null ? (String) body.get("message") : "库存预占失败";
                 throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(), message);
@@ -447,14 +491,36 @@ public class CheckoutService {
             throw e;
         } catch (Exception e) {
             log.error("Call stock lock API failed", e);
+            if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getMockStock())) {
+                log.warn("Fallback to mock stock lock due to API failure");
+                return mockLockStock(tenantId, bizType, userId, items, expireTime);
+            }
             throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
                     "库存预占接口调用失败");
         }
     }
 
+    private String mockLockStock(String tenantId, String bizType, String userId,
+                                List<CartItem> items, LocalDateTime expireTime) {
+        String lockCode = "MOCK_LOCK_" + System.currentTimeMillis() + "_" +
+                UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        log.info("Mock stock locked: lockCode={}, tenantId={}, bizType={}, userId={}, itemCount={}",
+                lockCode, tenantId, bizType, userId, items.size());
+        return lockCode;
+    }
+
     private void releaseStock(String lockCode) {
-        if (StringUtils.isBlank(cartHubProperties.getCheckout().getStockReleaseUrl())
-                || StringUtils.isBlank(lockCode)) {
+        if (StringUtils.isBlank(lockCode)) {
+            return;
+        }
+
+        if (StringUtils.isNotBlank(lockCode) && lockCode.startsWith("MOCK_LOCK_")) {
+            mockReleaseStock(lockCode);
+            return;
+        }
+
+        if (StringUtils.isBlank(cartHubProperties.getCheckout().getStockReleaseUrl())) {
+            log.warn("Stock release URL not configured, skip release for lockCode={}", lockCode);
             return;
         }
 
@@ -470,9 +536,14 @@ public class CheckoutService {
                     cartHubProperties.getCheckout().getStockReleaseUrl(),
                     entity,
                     Map.class);
+            log.info("Stock released successfully, lockCode={}", lockCode);
         } catch (Exception e) {
             log.warn("Call stock release API failed, lockCode={}", lockCode, e);
         }
+    }
+
+    private void mockReleaseStock(String lockCode) {
+        log.info("Mock stock released: lockCode={}", lockCode);
     }
 
     private void expireCheckout(CheckoutSnapshotEntity entity) {

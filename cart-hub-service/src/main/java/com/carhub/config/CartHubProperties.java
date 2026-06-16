@@ -105,9 +105,10 @@ public class CartHubProperties {
         private String stockLockUrl;
         private String stockReleaseUrl;
         private Integer stockTimeoutMs = 3000;
-        private Boolean enableStockLock = false;
+        private Boolean enableStockLock = true;
         private Integer maxConcurrentPerUser = 3;
         private String notifyUrl;
+        private Boolean mockStock = true;
     }
 
     @Bean

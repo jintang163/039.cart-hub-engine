@@ -115,11 +115,13 @@ cart-hub:
     max-history-records: 50000
   checkout:
     expire-minutes: 15
-    enable-stock-lock: false
+    enable-stock-lock: true
+    mock-stock: true
     stock-lock-url: http://localhost:8081/stock/lock
     stock-release-url: http://localhost:8081/stock/release
     stock-timeout-ms: 3000
     max-concurrent-per-user: 3
+    notify-url: http://localhost:8081/notify/checkout
 
 knife4j:
   enable: true

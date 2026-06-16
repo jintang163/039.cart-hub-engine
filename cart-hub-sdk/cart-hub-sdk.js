@@ -532,6 +532,94 @@
             return this.batchSort(sortItems);
         }
 
+        async createCheckout(options = {}) {
+            const body = {
+                skuIds: options.skuIds || null,
+                addressId: options.addressId || null,
+                couponId: options.couponId || null,
+                remark: options.remark || null,
+                source: options.source || this.source
+            };
+            const result = await this._request('/api/checkout', {
+                method: 'POST',
+                body: body
+            });
+            this._emit('checkoutCreated', result);
+            return result;
+        }
+
+        async getCheckout(checkoutToken) {
+            if (!checkoutToken) {
+                throw new Error('checkoutToken is required');
+            }
+            return await this._request('/api/checkout/' + encodeURIComponent(checkoutToken));
+        }
+
+        async confirmCheckout(options) {
+            if (!options || !options.checkoutToken) {
+                throw new Error('checkoutToken is required');
+            }
+            const result = await this._request('/api/checkout/confirm', {
+                method: 'POST',
+                body: options
+            });
+            this._emit('checkoutConfirmed', result);
+            return result;
+        }
+
+        async cancelCheckout(checkoutToken) {
+            if (!checkoutToken) {
+                throw new Error('checkoutToken is required');
+            }
+            const result = await this._request('/api/checkout/cancel/' + encodeURIComponent(checkoutToken), {
+                method: 'POST'
+            });
+            this._emit('checkoutCanceled', { checkoutToken, canceled: result });
+            return result;
+        }
+
+        async refreshCheckout(checkoutToken) {
+            if (!checkoutToken) {
+                throw new Error('checkoutToken is required');
+            }
+            const result = await this._request('/api/checkout/refresh/' + encodeURIComponent(checkoutToken), {
+                method: 'POST'
+            });
+            this._emit('checkoutRefreshed', result);
+            return result;
+        }
+
+        async listCheckouts(status) {
+            let url = '/api/checkout/list';
+            if (status != null) {
+                url += '?status=' + encodeURIComponent(status);
+            }
+            return await this._request(url);
+        }
+
+        goToOrderPage(checkoutToken, options = {}) {
+            const orderPageUrl = options.orderPageUrl || 'checkout-order.html';
+            const params = new URLSearchParams();
+            params.append('token', checkoutToken);
+            if (options.redirectUrl) {
+                params.append('redirect_url', options.redirectUrl);
+            }
+            const targetUrl = orderPageUrl + '?' + params.toString();
+            this._log('goToOrderPage', targetUrl);
+            if (options.replace) {
+                window.location.replace(targetUrl);
+            } else {
+                window.location.href = targetUrl;
+            }
+        }
+
+        checkoutAndGoToOrderPage(checkoutOptions = {}, orderPageOptions = {}) {
+            return this.createCheckout(checkoutOptions).then(result => {
+                this.goToOrderPage(result.checkoutToken, orderPageOptions);
+                return result;
+            });
+        }
+
         on(event, callback) {
             if (!_isFunction(callback)) return;
             (this.eventListeners[event] || (this.eventListeners[event] = [])).push(callback);

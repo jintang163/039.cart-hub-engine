@@ -441,12 +441,13 @@
             }
 
             try {
-                const result = await createCheckout({
-                    skuIds: selectedItems.map(i => i.skuId)
-                });
+                const skuIds = selectedItems.map(i => i.skuId);
+                const result = await sdk.checkoutAndGoToOrderPage(
+                    { skuIds: skuIds },
+                    { orderPageUrl: 'checkout-order.html', redirectUrl: 'checkout-demo.html' }
+                );
                 currentCheckoutToken = result.checkoutToken;
-                showCheckoutPage(result);
-                showToast('结算快照已创建，库存已锁定', 'success');
+                showToast('结算快照已创建，正在跳转到下单页...', 'success');
             } catch (e) {
                 showToast('结算失败: ' + e.message, 'error');
             }
@@ -559,7 +560,7 @@
         async function refreshCheckout() {
             if (!sdk || !currentCheckoutToken) return;
             try {
-                const result = await refreshCheckoutApi(currentCheckoutToken);
+                const result = await sdk.refreshCheckout(currentCheckoutToken);
                 currentCheckoutToken = result.checkoutToken;
                 startCountdown(result.expireSeconds);
                 showToast('结算已续期', 'success');
@@ -573,7 +574,7 @@
             if (!confirm('确定取消本次结算吗？库存将被释放。')) return;
 
             try {
-                await cancelCheckoutApi(currentCheckoutToken);
+                await sdk.cancelCheckout(currentCheckoutToken);
                 showToast('结算已取消，库存已释放', 'success');
                 backToCart();
             } catch (e) {
@@ -587,7 +588,7 @@
 
             try {
                 const orderNo = 'ORD' + Date.now();
-                const result = await confirmCheckoutApi({
+                const result = await sdk.confirmCheckout({
                     checkoutToken: currentCheckoutToken,
                     orderNo: orderNo
                 });
@@ -605,7 +606,7 @@
         async function loadMyCheckouts() {
             if (!sdk) return;
             try {
-                const list = await listCheckoutsApi();
+                const list = await sdk.listCheckouts();
                 renderCheckoutList(list);
             } catch (e) {
             }
@@ -654,126 +655,12 @@
         async function viewCheckout(token) {
             if (!sdk) return;
             try {
-                const result = await getCheckoutApi(token);
+                const result = await sdk.getCheckout(token);
                 currentCheckoutToken = token;
                 showCheckoutPage(result);
             } catch (e) {
                 showToast('获取详情失败: ' + e.message, 'error');
             }
-        }
-
-        async function createCheckout(data) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            const response = await fetch(baseUrl + '/api/checkout', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                },
-                body: JSON.stringify(data || {})
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '创建结算失败');
-            }
-            return result.data;
-        }
-
-        async function getCheckoutApi(token) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            const response = await fetch(baseUrl + '/api/checkout/' + token, {
-                headers: {
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                }
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '获取结算失败');
-            }
-            return result.data;
-        }
-
-        async function confirmCheckoutApi(data) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            const response = await fetch(baseUrl + '/api/checkout/confirm', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '确认失败');
-            }
-            return result.data;
-        }
-
-        async function cancelCheckoutApi(token) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            const response = await fetch(baseUrl + '/api/checkout/cancel/' + token, {
-                method: 'POST',
-                headers: {
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                }
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '取消失败');
-            }
-            return result.data;
-        }
-
-        async function refreshCheckoutApi(token) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            const response = await fetch(baseUrl + '/api/checkout/refresh/' + token, {
-                method: 'POST',
-                headers: {
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                }
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '续期失败');
-            }
-            return result.data;
-        }
-
-        async function listCheckoutsApi(status) {
-            const baseUrl = document.getElementById('baseUrl').value;
-            let url = baseUrl + '/api/checkout/list';
-            if (status !== undefined) {
-                url += '?status=' + status;
-            }
-            const response = await fetch(url, {
-                headers: {
-                    'X-Tenant-Id': document.getElementById('tenantId').value,
-                    'X-Biz-Type': document.getElementById('bizType').value,
-                    'X-User-Id': document.getElementById('userId').value,
-                    'X-Source': 'web'
-                }
-            });
-            const result = await response.json();
-            if (result.code !== 200) {
-                throw new Error(result.message || '获取列表失败');
-            }
-            return result.data;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
