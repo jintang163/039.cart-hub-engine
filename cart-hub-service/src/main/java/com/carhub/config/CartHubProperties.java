@@ -21,6 +21,7 @@ public class CartHubProperties {
     private Promotion promotion = new Promotion();
     private Recommend recommend = new Recommend();
     private Remark remark = new Remark();
+    private Share share = new Share();
 
     @Data
     public static class Redis {
@@ -88,6 +89,13 @@ public class CartHubProperties {
         private Integer maxLength = 200;
         private Boolean enableSensitiveWordFilter = true;
         private java.util.List<String> sensitiveWords = new java.util.ArrayList<>();
+    }
+
+    @Data
+    public static class Share {
+        private String baseUrl = "https://example.com/cart/share";
+        private String qrCodeApi = "https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=";
+        private Boolean enableQrCode = true;
     }
 
     @Bean

@@ -97,17 +97,64 @@ public class CartShareService {
         String shareKey = RedisKeyConstant.buildCartShareKey(shareId);
         stringRedisTemplate.opsForValue().set(shareKey, JsonUtil.toJson(cart), Duration.ofSeconds(expireSec));
 
+        String shareUrl = buildShareUrl(shareId, tenantId, bizType);
+        String qrCodeUrl = buildQrCodeUrl(shareUrl);
+
         Map<String, Object> result = new HashMap<>();
         result.put("shareId", shareId);
+        result.put("shareUrl", shareUrl);
+        result.put("qrCodeUrl", qrCodeUrl);
         result.put("expireTime", expireTime.format(EXPIRE_TIME_FORMATTER));
         result.put("needPassword", StringUtils.isNotBlank(password));
         result.put("itemCount", cart.getItemCount());
+        result.put("totalQuantity", cart.getTotalQuantity());
         result.put("totalAmount", cart.getTotalAmount());
+        result.put("title", entity.getTitle());
+        result.put("viewCount", 0);
+        result.put("acceptCount", 0);
 
-        log.info("createShare success: tenantId={}, bizType={}, userId={}, shareId={}, expireTime={}",
-                tenantId, bizType, userId, shareId, expireTime);
+        log.info("createShare success: tenantId={}, bizType={}, userId={}, shareId={}, shareUrl={}, expireTime={}",
+                tenantId, bizType, userId, shareId, shareUrl, expireTime);
 
         return result;
+    }
+
+    private String buildShareUrl(String shareId, String tenantId, String bizType) {
+        String baseUrl = cartHubProperties.getShare().getBaseUrl();
+        if (StringUtils.isBlank(baseUrl)) {
+            baseUrl = "/cart/share";
+        }
+        StringBuilder sb = new StringBuilder(baseUrl);
+        if (baseUrl.contains("?")) {
+            sb.append("&");
+        } else {
+            sb.append("?");
+        }
+        sb.append("share=").append(shareId);
+        if (StringUtils.isNotBlank(tenantId)) {
+            sb.append("&tenantId=").append(tenantId);
+        }
+        if (StringUtils.isNotBlank(bizType)) {
+            sb.append("&bizType=").append(bizType);
+        }
+        return sb.toString();
+    }
+
+    private String buildQrCodeUrl(String shareUrl) {
+        if (!Boolean.TRUE.equals(cartHubProperties.getShare().getEnableQrCode())) {
+            return null;
+        }
+        String qrCodeApi = cartHubProperties.getShare().getQrCodeApi();
+        if (StringUtils.isBlank(qrCodeApi)) {
+            return null;
+        }
+        try {
+            String encodedUrl = java.net.URLEncoder.encode(shareUrl, "UTF-8");
+            return qrCodeApi + encodedUrl;
+        } catch (Exception e) {
+            log.warn("build qrcode url failed", e);
+            return null;
+        }
     }
 
     public Cart viewShare(String shareId, String password) {
@@ -341,18 +388,29 @@ public class CartShareService {
                 })
                 .collect(Collectors.toList());
 
-        List<CartValidateService.ProductValidateResult> validateResults =
-                invokeRemoteValidate(tenantId, bizType, validateList);
+        ValidateResult validateResult = invokeRemoteValidate(tenantId, bizType, validateList);
+
+        if (!validateResult.success) {
+            for (CartItem item : items) {
+                Map<String, Object> invalidInfo = buildInvalidItemInfo(item, validateResult.errorMessage);
+                invalidItems.add(invalidInfo);
+            }
+            Map<String, Object> result = new HashMap<>();
+            result.put("validItems", validItems);
+            result.put("invalidItems", invalidItems);
+            return result;
+        }
 
         Map<String, CartValidateService.ProductValidateResult> resultMap = new HashMap<>();
-        for (CartValidateService.ProductValidateResult r : validateResults) {
+        for (CartValidateService.ProductValidateResult r : validateResult.results) {
             resultMap.put(r.getSkuId(), r);
         }
 
         for (CartItem item : items) {
             CartValidateService.ProductValidateResult r = resultMap.get(item.getSkuId());
             if (r == null) {
-                validItems.add(item);
+                Map<String, Object> invalidInfo = buildInvalidItemInfo(item, "商品信息校验失败");
+                invalidItems.add(invalidInfo);
                 continue;
             }
 
@@ -374,17 +432,11 @@ public class CartShareService {
                 }
                 validItems.add(item);
             } else {
-                Map<String, Object> invalidInfo = new HashMap<>();
-                invalidInfo.put("skuId", item.getSkuId());
-                invalidInfo.put("itemName", item.getItemName());
-                invalidInfo.put("itemImage", item.getItemImage());
-                invalidInfo.put("quantity", item.getQuantity());
-                invalidInfo.put("unitPrice", item.getUnitPrice());
                 String reason = StringUtils.defaultIfBlank(r.getErrorMessage(), "商品不可购买");
                 if (Boolean.FALSE.equals(r.getOnShelf())) {
                     reason = "商品已下架";
                 }
-                invalidInfo.put("reason", reason);
+                Map<String, Object> invalidInfo = buildInvalidItemInfo(item, reason);
                 invalidItems.add(invalidInfo);
             }
         }
@@ -395,13 +447,50 @@ public class CartShareService {
         return result;
     }
 
-    private List<CartValidateService.ProductValidateResult> invokeRemoteValidate(
+    private Map<String, Object> buildInvalidItemInfo(CartItem item, String reason) {
+        Map<String, Object> invalidInfo = new HashMap<>();
+        invalidInfo.put("skuId", item.getSkuId());
+        invalidInfo.put("itemName", item.getItemName());
+        invalidInfo.put("itemImage", item.getItemImage());
+        invalidInfo.put("quantity", item.getQuantity());
+        invalidInfo.put("unitPrice", item.getUnitPrice());
+        invalidInfo.put("reason", reason);
+        return invalidInfo;
+    }
+
+    private static class ValidateResult {
+        boolean success;
+        String errorMessage;
+        List<CartValidateService.ProductValidateResult> results;
+
+        static ValidateResult success(List<CartValidateService.ProductValidateResult> results) {
+            ValidateResult r = new ValidateResult();
+            r.success = true;
+            r.results = results;
+            return r;
+        }
+
+        static ValidateResult failure(String errorMessage) {
+            ValidateResult r = new ValidateResult();
+            r.success = false;
+            r.errorMessage = errorMessage;
+            r.results = Collections.emptyList();
+            return r;
+        }
+    }
+
+    private ValidateResult invokeRemoteValidate(
             String tenantId, String bizType, List<ProductValidateDTO> list) {
         try {
-            return cartValidateService.remoteValidate(tenantId, bizType, list);
+            List<CartValidateService.ProductValidateResult> results =
+                    cartValidateService.remoteValidate(tenantId, bizType, list);
+            if (results == null || results.isEmpty()) {
+                return ValidateResult.failure("商品校验服务未配置或返回空结果，暂不可购买");
+            }
+            return ValidateResult.success(results);
         } catch (Exception e) {
-            log.warn("invoke remote validate failed, skip validation", e);
-            return new ArrayList<>();
+            log.error("invoke remote validate failed", e);
+            return ValidateResult.failure("商品校验服务异常，暂不可购买");
         }
     }
 

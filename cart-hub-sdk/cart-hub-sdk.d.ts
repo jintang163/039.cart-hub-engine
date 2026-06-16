@@ -187,10 +187,16 @@ export interface CreateShareOptions {
 
 export interface ShareResult {
     shareId: string;
+    shareUrl: string;
+    qrCodeUrl: string;
     expireTime: string;
     needPassword: boolean;
     itemCount?: number;
+    totalQuantity?: number;
     totalAmount?: string;
+    title?: string;
+    viewCount?: number;
+    acceptCount?: number;
 }
 
 export interface AcceptShareResult {

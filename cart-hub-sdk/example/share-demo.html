@@ -338,7 +338,7 @@
                 <div class="divider"></div>
 
                 <div class="qr-container" id="qrSection" style="display: none;">
-                    <div class="qr-code"></div>
+                    <img id="qrCodeImg" alt="分享二维码" style="width: 200px; height: 200px; border-radius: 8px; margin-bottom: 12px;" />
                     <div class="qr-tip">打开手机扫码，即可查看分享内容</div>
                 </div>
 
@@ -356,6 +356,10 @@
                 <div class="stats-row">
                     <div class="stat-item">
                         <div class="stat-value" id="shareItemCount">0</div>
+                        <div class="stat-label">商品种类</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="shareTotalQty">0</div>
                         <div class="stat-label">商品件数</div>
                     </div>
                     <div class="stat-item">
@@ -564,15 +568,23 @@
 
                 currentShareData = result;
 
-                const baseUrl = window.location.href.replace(/\/[^\/]*$/, '') + '/share-demo.html?share=';
-                const shareLink = baseUrl + result.shareId;
+                const shareLink = result.shareUrl || (window.location.href.replace(/\/[^\/]*$/, '') + '/share-demo.html?share=' + result.shareId);
 
                 document.getElementById('shareLink').textContent = shareLink;
                 document.getElementById('shareCode').textContent = result.shareId;
                 document.getElementById('expireTime').textContent = result.expireTime;
                 document.getElementById('pwdStatus').textContent = result.needPassword ? '已开启' : '未开启';
                 document.getElementById('shareItemCount').textContent = result.itemCount || cart.items.length;
+                document.getElementById('shareTotalQty').textContent = result.totalQuantity || 0;
                 document.getElementById('shareTotalAmount').textContent = '¥' + (result.totalAmount || cart.totalAmount);
+
+                if (result.qrCodeUrl) {
+                    document.getElementById('qrCodeImg').src = result.qrCodeUrl;
+                    document.getElementById('qrSection').style.display = 'block';
+                } else {
+                    document.getElementById('qrSection').style.display = 'none';
+                }
+
                 document.getElementById('shareResult').style.display = 'block';
 
                 showToast('分享创建成功！');
