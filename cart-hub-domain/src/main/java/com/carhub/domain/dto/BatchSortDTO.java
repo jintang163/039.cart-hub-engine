@@ -23,4 +23,8 @@ public class BatchSortDTO implements Serializable {
         private Integer sortWeight;
     }
 
+    private Long clientVersion;
+
+    private Boolean forceOverwrite = false;
+
 }

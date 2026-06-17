@@ -4,6 +4,7 @@ import com.carhub.common.constant.CartConstant;
 import com.carhub.common.constant.RedisKeyConstant;
 import com.carhub.common.context.CartContextHolder;
 import com.carhub.common.exception.BusinessException;
+import com.carhub.common.exception.CartVersionConflictException;
 import com.carhub.common.result.ResultCode;
 import com.carhub.common.util.JsonUtil;
 import com.carhub.config.CartHubProperties;
@@ -11,6 +12,7 @@ import com.carhub.domain.dto.*;
 import com.carhub.domain.model.Cart;
 import com.carhub.domain.model.CartItem;
 import com.carhub.domain.vo.CartVO;
+import com.carhub.domain.vo.CartVersionConflictVO;
 import com.carhub.storage.CartRedisStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +56,7 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
         checkCartLimit(tenantId, bizType, userId);
 
         String processedRemark = processRemark(dto.getRemark());
@@ -109,6 +112,7 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
 
         CartItem oldItem = cartRedisStorage.getItem(tenantId, bizType, userId, dto.getSkuId());
         if (oldItem == null) {
@@ -145,11 +149,12 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Long incrementQuantity(String skuId, int delta) {
+    public Long incrementQuantity(String skuId, int delta, Long clientVersion, Boolean forceOverwrite) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite);
 
         CartItem oldItem = cartRedisStorage.getItem(tenantId, bizType, userId, skuId);
         if (oldItem == null) {
@@ -168,11 +173,12 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeItem(String skuId) {
+    public boolean removeItem(String skuId, Long clientVersion, Boolean forceOverwrite) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite);
 
         CartItem oldItem = cartRedisStorage.getItem(tenantId, bizType, userId, skuId);
         if (oldItem == null) {
@@ -196,6 +202,7 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
 
         long count = cartRedisStorage.batchRemove(tenantId, bizType, userId, dto.getSkuIds());
         if (count > 0) {
@@ -211,11 +218,12 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public boolean clearCart() {
+    public boolean clearCart(Long clientVersion, Boolean forceOverwrite) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite);
 
         cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_CLEAR,
                 null, null, null, null, null, null);
@@ -276,27 +284,28 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public boolean setItemRemark(String skuId, String remark) {
+    public boolean setItemRemark(UpdateItemRemarkDTO dto) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
 
-        CartItem item = cartRedisStorage.getItem(tenantId, bizType, userId, skuId);
+        CartItem item = cartRedisStorage.getItem(tenantId, bizType, userId, dto.getSkuId());
         if (item == null) {
             throw new BusinessException(ResultCode.CART_ITEM_NOT_FOUND);
         }
 
-        String processedRemark = processRemark(remark);
+        String processedRemark = processRemark(dto.getRemark());
 
         CartItem updateItem = CartItem.builder()
-                .skuId(skuId)
+                .skuId(dto.getSkuId())
                 .remark(processedRemark)
                 .build();
         boolean updated = cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
         if (updated) {
             cartHistoryService.recordHistory(tenantId, bizType, userId, CartConstant.ACTION_UPDATE,
-                    skuId, null, null, null, null, "update remark");
+                    dto.getSkuId(), null, null, null, null, "update remark");
             asyncSyncDb(tenantId, bizType, userId);
         }
         return updated;
@@ -329,11 +338,12 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeItemRemark(String skuId) {
+    public boolean removeItemRemark(String skuId, Long clientVersion, Boolean forceOverwrite) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite);
 
         CartItem updateItem = CartItem.builder()
                 .skuId(skuId)
@@ -343,11 +353,12 @@ public class CartService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public boolean clearAllItemRemarks() {
+    public boolean clearAllItemRemarks(Long clientVersion, Boolean forceOverwrite) {
         String tenantId = CartContextHolder.getTenantId();
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite);
         List<CartItem> items = cartRedisStorage.getItems(tenantId, bizType, userId);
         if (items == null || items.isEmpty()) {
             return true;
@@ -393,6 +404,7 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
 
         if (dto.getSortItems() == null || dto.getSortItems().isEmpty()) {
             throw new BusinessException(ResultCode.SORT_SKU_LIST_INVALID);
@@ -444,6 +456,7 @@ public class CartService {
         String bizType = CartContextHolder.getBizType();
         String userId = CartContextHolder.getUserId();
         validateUserId(userId);
+        checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite());
 
         if (dto.getItems() == null || dto.getItems().isEmpty()) {
             return getCartSimple();
@@ -611,6 +624,20 @@ public class CartService {
     private void validateUserId(String userId) {
         if (StringUtils.isBlank(userId)) {
             throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), "用户未登录，请先登录");
+        }
+    }
+
+    private void checkVersionConflict(String tenantId, String bizType, String userId,
+                                       Long clientVersion, Boolean forceOverwrite) {
+        if (clientVersion == null || Boolean.TRUE.equals(forceOverwrite)) {
+            return;
+        }
+        if (cartRedisStorage.checkVersionConflict(tenantId, bizType, userId, clientVersion)) {
+            CartVersionConflictVO conflictInfo = cartRedisStorage.buildConflictInfo(
+                    tenantId, bizType, userId, clientVersion);
+            log.warn("Cart version conflict: tenantId={}, bizType={}, userId={}, clientVersion={}, serverVersion={}",
+                    tenantId, bizType, userId, clientVersion, conflictInfo.getServerVersion());
+            throw new CartVersionConflictException(conflictInfo);
         }
     }
 

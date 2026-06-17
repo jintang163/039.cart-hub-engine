@@ -60,7 +60,10 @@ public enum ResultCode {
     IMPORT_NO_VALID_DATA(8006, "导入文件中没有有效的商品数据"),
     IMPORT_REPORT_NOT_READY(8007, "失败报告尚未生成"),
     EXPORT_CART_EMPTY(8008, "购物车为空，无法导出"),
-    EXPORT_FAILED(8009, "导出失败");
+    EXPORT_FAILED(8009, "导出失败"),
+
+    CART_VERSION_CONFLICT(9001, "购物车版本冲突，多设备同时修改"),
+    CART_VERSION_OUTDATED(9002, "本地购物车版本已过期，请刷新后重试");
 
     private final Integer code;
     private final String message;

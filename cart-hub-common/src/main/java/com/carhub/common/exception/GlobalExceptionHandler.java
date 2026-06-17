@@ -2,6 +2,7 @@ package com.carhub.common.exception;
 
 import com.carhub.common.result.R;
 import com.carhub.common.result.ResultCode;
+import com.carhub.domain.vo.CartVersionConflictVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -18,6 +19,18 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(CartVersionConflictException.class)
+    public R<CartVersionConflictVO> handleCartVersionConflictException(CartVersionConflictException e) {
+        log.warn("购物车版本冲突: clientVersion={}, serverVersion={}",
+                e.getConflictInfo() != null ? e.getConflictInfo().getClientVersion() : null,
+                e.getConflictInfo() != null ? e.getConflictInfo().getServerVersion() : null);
+        R<CartVersionConflictVO> r = new R<>();
+        r.setCode(e.getCode());
+        r.setMessage(e.getMessage());
+        r.setData(e.getConflictInfo());
+        return r;
+    }
 
     @ExceptionHandler(BusinessException.class)
     public R<Void> handleBusinessException(BusinessException e) {

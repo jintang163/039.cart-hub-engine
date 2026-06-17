@@ -15,4 +15,8 @@ public class UpdateItemRemarkDTO implements Serializable {
 
     private String remark;
 
+    private Long clientVersion;
+
+    private Boolean forceOverwrite = false;
+
 }

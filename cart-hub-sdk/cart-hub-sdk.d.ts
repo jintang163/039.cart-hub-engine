@@ -14,12 +14,16 @@ export declare class CartHubSDK {
     updateLocalItem(skuId: string, updates: Partial<CartItemInput>): LocalCart;
     clearLocalCart(): LocalCart;
 
-    addItem(item: CartItemInput): Promise<CartVO>;
-    updateItem(item: UpdateCartItemInput): Promise<CartVO>;
-    incrementQuantity(skuId: string, delta?: number): Promise<CartVO>;
-    removeItem(skuId: string): Promise<CartVO>;
-    batchRemove(skuIds: string[]): Promise<CartVO>;
-    clearCart(): Promise<CartVO>;
+    addItem(item: CartItemInput, options?: VersionConflictOptions): Promise<CartVO>;
+    updateItem(item: UpdateCartItemInput, options?: VersionConflictOptions): Promise<CartVO>;
+    incrementQuantity(skuId: string, delta?: number, options?: VersionConflictOptions): Promise<CartVO>;
+    removeItem(skuId: string, options?: VersionConflictOptions): Promise<CartVO>;
+    batchRemove(skuIds: string[], options?: VersionConflictOptions): Promise<CartVO>;
+    clearCart(options?: VersionConflictOptions): Promise<CartVO>;
+
+    getCartVersion(): number;
+    forceRefreshCart(): Promise<CartVO>;
+    resolveConflict(choice: 'overwrite' | 'merge' | 'accept_server', conflictInfo?: CartVersionConflictVO): Promise<any>;
 
     getCart(validate?: boolean, checkInventory?: boolean): Promise<CartVO | (LocalCart & { local: true })>;
     getCartSimple(): Promise<CartVO | LocalCart>;
@@ -32,7 +36,7 @@ export declare class CartHubSDK {
     batchUnsubscribePriceDrop(skuIds?: string[]): Promise<boolean>;
     getPriceDropInfo(): Promise<PriceDropInfo>;
 
-    mergeCart(options?: MergeCartOptions): Promise<CartVO>;
+    mergeCart(options?: MergeCartOptions & VersionConflictOptions): Promise<CartVO>;
 
     createShare(options?: CreateShareOptions): Promise<ShareResult>;
     viewShare(shareId: string, password?: string): Promise<CartData>;
@@ -63,14 +67,14 @@ export declare class CartHubSDK {
     getTieredDiscountProgress(totalAmount?: number): Promise<TieredDiscountProgressVO>;
     getRecommendations(options?: RecommendOptions): Promise<RecommendItemVO[]>;
 
-    setItemRemark(skuId: string, remark: string): Promise<boolean>;
+    setItemRemark(skuId: string, remark: string, options?: VersionConflictOptions): Promise<boolean>;
     getItemRemark(skuId: string): Promise<string>;
     getAllItemRemarks(): Promise<Record<string, string>>;
-    removeItemRemark(skuId: string): Promise<boolean>;
-    clearAllItemRemarks(): Promise<boolean>;
+    removeItemRemark(skuId: string, options?: VersionConflictOptions): Promise<boolean>;
+    clearAllItemRemarks(options?: VersionConflictOptions): Promise<boolean>;
 
-    batchSort(sortItems: SortItem[]): Promise<number>;
-    reorderCartBySkus(orderedSkuIds: string[]): Promise<number>;
+    batchSort(sortItems: SortItem[], options?: VersionConflictOptions): Promise<number>;
+    reorderCartBySkus(orderedSkuIds: string[], options?: VersionConflictOptions): Promise<number>;
 
     on<K extends keyof CartHubEventMap>(event: K, callback: (data: CartHubEventMap[K]) => void): () => void;
     on(event: string, callback: (data: any) => void): () => void;
@@ -286,6 +290,7 @@ export type CartHubEventMap = {
     mergeFailed: MergeFailedEvent;
     localChanged: LocalCart;
     cartChanged: CartVO | LocalCart;
+    versionConflict: CartVersionConflictVO;
     itemAdded: { item: CartItemInput; result: any; local?: boolean };
     itemUpdated: { item: any; result: any; local?: boolean };
     itemRemoved: { skuId: string; result: any; local?: boolean };
@@ -671,5 +676,21 @@ export interface InventoryStatus {
     shortageItems: InventoryItemVO[];
     checkFailed?: boolean;
     errorMessage?: string;
+}
+
+export interface VersionConflictOptions {
+    clientVersion?: number;
+    forceOverwrite?: boolean;
+}
+
+export interface CartVersionConflictVO {
+    clientVersion: number;
+    serverVersion: number;
+    serverItems: CartItemVO[];
+    addedItems?: CartItemVO[];
+    removedItems?: CartItemVO[];
+    modifiedItems?: CartItemVO[];
+    updateTime: number;
+    message: string;
 }
 

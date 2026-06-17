@@ -23,4 +23,8 @@ public class MergeCartDTO implements Serializable {
 
     private Long anonymousLastAccessTime;
 
+    private Long clientVersion;
+
+    private Boolean forceOverwrite = false;
+
 }

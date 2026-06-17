@@ -560,10 +560,32 @@ public class CartRedisStorage {
         return cartKey + ":version";
     }
 
-    private Long getVersion(String tenantId, String bizType, String userId) {
+    public Long getVersion(String tenantId, String bizType, String userId) {
         String cartKey = RedisKeyConstant.buildCartKey(tenantId, bizType, userId);
         String verStr = stringRedisTemplate.opsForValue().get(getVersionKey(cartKey));
         return verStr == null ? 0L : Long.parseLong(verStr);
+    }
+
+    public boolean checkVersionConflict(String tenantId, String bizType, String userId, Long clientVersion) {
+        if (clientVersion == null) {
+            return false;
+        }
+        Long serverVersion = getVersion(tenantId, bizType, userId);
+        return clientVersion < serverVersion;
+    }
+
+    public com.carhub.domain.vo.CartVersionConflictVO buildConflictInfo(
+            String tenantId, String bizType, String userId, Long clientVersion) {
+        Long serverVersion = getVersion(tenantId, bizType, userId);
+        List<com.carhub.domain.model.CartItem> serverItems = getItems(tenantId, bizType, userId);
+
+        return com.carhub.domain.vo.CartVersionConflictVO.builder()
+                .clientVersion(clientVersion)
+                .serverVersion(serverVersion)
+                .serverItems(serverItems)
+                .updateTime(System.currentTimeMillis())
+                .message("检测到其他设备已更新购物车，请选择处理方式")
+                .build();
     }
 
     private void incrementVersion(String tenantId, String bizType, String cartKey) {

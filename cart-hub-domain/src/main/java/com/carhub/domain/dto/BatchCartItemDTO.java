@@ -14,4 +14,8 @@ public class BatchCartItemDTO implements Serializable {
     @NotEmpty(message = "SKU ID列表不能为空")
     private List<String> skuIds;
 
+    private Long clientVersion;
+
+    private Boolean forceOverwrite = false;
+
 }

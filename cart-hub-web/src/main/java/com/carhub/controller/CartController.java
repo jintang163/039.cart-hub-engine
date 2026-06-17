@@ -56,14 +56,19 @@ public class CartController {
     @PatchMapping("/item/quantity")
     public R<Long> incrementQuantity(
             @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
-            @ApiParam("增量，正数增加，负数减少") @RequestParam(defaultValue = "1") int delta) {
-        return R.ok(cartService.incrementQuantity(skuId, delta));
+            @ApiParam("增量，正数增加，负数减少") @RequestParam(defaultValue = "1") int delta,
+            @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
+        return R.ok(cartService.incrementQuantity(skuId, delta, clientVersion, forceOverwrite));
     }
 
     @ApiOperation("删除购物车单个商品")
     @DeleteMapping("/item")
-    public R<Boolean> removeItem(@ApiParam("SKU ID") @RequestParam @NotBlank String skuId) {
-        return R.ok(cartService.removeItem(skuId));
+    public R<Boolean> removeItem(
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
+            @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
+        return R.ok(cartService.removeItem(skuId, clientVersion, forceOverwrite));
     }
 
     @ApiOperation("批量删除购物车商品")
@@ -74,8 +79,10 @@ public class CartController {
 
     @ApiOperation("清空购物车")
     @DeleteMapping("/clear")
-    public R<Boolean> clearCart() {
-        return R.ok(cartService.clearCart());
+    public R<Boolean> clearCart(
+            @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
+        return R.ok(cartService.clearCart(clientVersion, forceOverwrite));
     }
 
     @ApiOperation("获取完整购物车（含校验重算）")
@@ -334,7 +341,7 @@ public class CartController {
     @ApiOperation("设置购物车商品备注")
     @PutMapping("/item/remark")
     public R<Boolean> setItemRemark(@RequestBody @Valid UpdateItemRemarkDTO dto) {
-        return R.ok(cartService.setItemRemark(dto.getSkuId(), dto.getRemark()));
+        return R.ok(cartService.setItemRemark(dto));
     }
 
     @ApiOperation("获取购物车单个商品备注")
@@ -353,14 +360,18 @@ public class CartController {
     @ApiOperation("删除购物车单个商品备注")
     @DeleteMapping("/item/remark")
     public R<Boolean> removeItemRemark(
-            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId) {
-        return R.ok(cartService.removeItemRemark(skuId));
+            @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
+            @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
+        return R.ok(cartService.removeItemRemark(skuId, clientVersion, forceOverwrite));
     }
 
     @ApiOperation("清空购物车所有商品备注")
     @DeleteMapping("/items/remarks")
-    public R<Boolean> clearAllItemRemarks() {
-        return R.ok(cartService.clearAllItemRemarks());
+    public R<Boolean> clearAllItemRemarks(
+            @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
+        return R.ok(cartService.clearAllItemRemarks(clientVersion, forceOverwrite));
     }
 
     @ApiOperation("批量更新购物车商品排序（拖拽排序用）")

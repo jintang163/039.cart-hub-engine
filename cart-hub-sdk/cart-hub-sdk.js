@@ -175,6 +175,15 @@
                     result = { code: -1, message: 'Invalid JSON response', data: text };
                 }
                 this._log('response', result);
+                if (result.code === 9001 || result.code === 9002) {
+                    this._log('version conflict detected', result.data);
+                    if (result.data && result.data.serverVersion != null) {
+                        this._localCache.version = result.data.serverVersion;
+                        this._saveLocalCache();
+                    }
+                    this._emit('versionConflict', result.data);
+                    throw Object.assign(new Error(result.message || '购物车版本冲突'), result);
+                }
                 if (result.code !== 200 && result.code !== 0) {
                     this._emit('error', { url, error: result });
                     throw Object.assign(new Error(result.message || 'Request failed'), result);
@@ -187,6 +196,18 @@
                     throw new Error('Request timeout');
                 }
                 throw error;
+            }
+        }
+
+        _getCurrentVersion() {
+            return this._localCache.version || 0;
+        }
+
+        _updateServerVersion(version) {
+            if (version != null && (this._localCache.version == null || version > this._localCache.version)) {
+                this._localCache.version = version;
+                this._saveLocalCache();
+                this._log('updated local version to', version);
             }
         }
 
@@ -260,23 +281,27 @@
             return this.getLocalCart();
         }
 
-        async addItem(item) {
+        async addItem(item, options = {}) {
             if (!this.isLoggedIn()) {
                 const localCart = this.addLocalItem(item);
                 this._emit('itemAdded', { item, result: localCart, local: true });
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
+            const body = Object.assign({}, item, {
+                clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                forceOverwrite: options.forceOverwrite || false
+            });
             const result = await this._request('/api/cart/item', {
                 method: 'POST',
-                body: item
+                body: body
             });
             this._emit('itemAdded', { item, result });
             this._emit('cartChanged', result);
             return result;
         }
 
-        async updateItem(item) {
+        async updateItem(item, options = {}) {
             if (!this.isLoggedIn()) {
                 if (!item || !item.skuId) throw new Error('skuId is required');
                 const localCart = this.updateLocalItem(item.skuId, item);
@@ -284,16 +309,20 @@
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
+            const body = Object.assign({}, item, {
+                clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                forceOverwrite: options.forceOverwrite || false
+            });
             const result = await this._request('/api/cart/item', {
                 method: 'PUT',
-                body: item
+                body: body
             });
             this._emit('itemUpdated', { item, result });
             this._emit('cartChanged', result);
             return result;
         }
 
-        async incrementQuantity(skuId, delta = 1) {
+        async incrementQuantity(skuId, delta = 1, options = {}) {
             if (!this.isLoggedIn()) {
                 const exist = this._localCache.items.find(i => i.skuId === skuId);
                 if (!exist) throw new Error('SKU not found in local cart');
@@ -303,7 +332,12 @@
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
-            const qs = new URLSearchParams({ skuId, delta: String(delta) });
+            const qs = new URLSearchParams({
+                skuId,
+                delta: String(delta),
+                clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
+                forceOverwrite: String(options.forceOverwrite || false)
+            });
             const result = await this._request('/api/cart/item/quantity?' + qs.toString(), {
                 method: 'PATCH'
             });
@@ -312,14 +346,18 @@
             return result;
         }
 
-        async removeItem(skuId) {
+        async removeItem(skuId, options = {}) {
             if (!this.isLoggedIn()) {
                 const localCart = this.removeLocalItem(skuId);
                 this._emit('itemRemoved', { skuId, result: localCart, local: true });
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
-            const qs = new URLSearchParams({ skuId });
+            const qs = new URLSearchParams({
+                skuId,
+                clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
+                forceOverwrite: String(options.forceOverwrite || false)
+            });
             const result = await this._request('/api/cart/item?' + qs.toString(), {
                 method: 'DELETE'
             });
@@ -328,7 +366,7 @@
             return result;
         }
 
-        async batchRemove(skuIds) {
+        async batchRemove(skuIds, options = {}) {
             if (!this.isLoggedIn()) {
                 let localCart = this.getLocalCart();
                 (skuIds || []).forEach(id => {
@@ -338,23 +376,32 @@
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
+            const body = {
+                skuIds,
+                clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                forceOverwrite: options.forceOverwrite || false
+            };
             const result = await this._request('/api/cart/items', {
                 method: 'DELETE',
-                body: { skuIds }
+                body: body
             });
             this._emit('itemsBatchRemoved', { skuIds, result });
             this._emit('cartChanged', result);
             return result;
         }
 
-        async clearCart() {
+        async clearCart(options = {}) {
             if (!this.isLoggedIn()) {
                 const localCart = this.clearLocalCart();
                 this._emit('cartCleared', { ...localCart, local: true });
                 this._emit('cartChanged', localCart);
                 return localCart;
             }
-            const result = await this._request('/api/cart/clear', { method: 'DELETE' });
+            const qs = new URLSearchParams({
+                clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
+                forceOverwrite: String(options.forceOverwrite || false)
+            });
+            const result = await this._request('/api/cart/clear?' + qs.toString(), { method: 'DELETE' });
             this._emit('cartCleared', result);
             this._emit('cartChanged', result);
             return result;
@@ -368,6 +415,10 @@
             }
             const qs = new URLSearchParams({ validate: String(validate) });
             const cart = await this._request('/api/cart?' + qs.toString());
+
+            if (cart && cart.version != null) {
+                this._updateServerVersion(cart.version);
+            }
 
             if (checkInventory && cart && cart.items && cart.items.length > 0) {
                 try {
@@ -400,6 +451,9 @@
                 return this.getLocalCart();
             }
             const result = await this._request('/api/cart/simple');
+            if (result && result.version != null) {
+                this._updateServerVersion(result.version);
+            }
             this._emit('cartLoaded', result);
             return result;
         }
@@ -488,7 +542,9 @@
                 items: sourceItems,
                 sourceUserId: options.sourceUserId || this._anonymousId,
                 overwrite: !!options.overwrite,
-                anonymousLastAccessTime: options.anonymousLastAccessTime || this._getLocalMaxAddTime()
+                anonymousLastAccessTime: options.anonymousLastAccessTime || this._getLocalMaxAddTime(),
+                clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                forceOverwrite: options.forceOverwrite || false
             };
             const result = await this._request('/api/cart/merge', {
                 method: 'POST',
@@ -506,6 +562,51 @@
             });
             this._emit('cartChanged', result);
             return result;
+        }
+
+        getCartVersion() {
+            return this._getCurrentVersion();
+        }
+
+        async forceRefreshCart() {
+            return this.getCart(true, false);
+        }
+
+        async resolveConflict(choice, conflictInfo) {
+            if (choice === 'overwrite') {
+                this._log('resolving conflict by forcing overwrite');
+                return { choice: 'overwrite', forceOverwrite: true };
+            } else if (choice === 'merge') {
+                this._log('resolving conflict by merging local items');
+                const serverItems = conflictInfo && conflictInfo.serverItems ? conflictInfo.serverItems : [];
+                const localItems = this._localCache.items || [];
+                const mergedMap = {};
+                serverItems.forEach(item => { if (item && item.skuId) mergedMap[item.skuId] = Object.assign({}, item); });
+                localItems.forEach(item => {
+                    if (item && item.skuId) {
+                        if (mergedMap[item.skuId]) {
+                            const existing = mergedMap[item.skuId];
+                            existing.quantity = (existing.quantity || 0) + (item.quantity || 0);
+                        } else {
+                            mergedMap[item.skuId] = Object.assign({}, item);
+                        }
+                    }
+                });
+                const mergedItems = Object.values(mergedMap);
+                return this.mergeCart({
+                    items: mergedItems,
+                    clearLocalAfterMerge: true,
+                    overwrite: true,
+                    forceOverwrite: true
+                });
+            } else if (choice === 'accept_server') {
+                this._log('resolving conflict by accepting server version');
+                if (conflictInfo && conflictInfo.serverVersion != null) {
+                    this._updateServerVersion(conflictInfo.serverVersion);
+                }
+                return this.forceRefreshCart();
+            }
+            throw new Error('Unknown conflict resolution choice: ' + choice);
         }
 
         async createShare(options = {}) {
@@ -659,10 +760,15 @@
             return this._request('/api/cart/recommend?' + qs.toString());
         }
 
-        async setItemRemark(skuId, remark) {
+        async setItemRemark(skuId, remark, options = {}) {
             const result = await this._request('/api/cart/item/remark', {
                 method: 'PUT',
-                body: { skuId, remark }
+                body: {
+                    skuId,
+                    remark,
+                    clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                    forceOverwrite: options.forceOverwrite || false
+                }
             });
             this._emit('remarkChanged', { skuId, remark });
             this._emit('cartChanged', result);
@@ -678,8 +784,12 @@
             return this._request('/api/cart/items/remarks');
         }
 
-        async removeItemRemark(skuId) {
-            const qs = new URLSearchParams({ skuId });
+        async removeItemRemark(skuId, options = {}) {
+            const qs = new URLSearchParams({
+                skuId,
+                clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
+                forceOverwrite: String(options.forceOverwrite || false)
+            });
             const result = await this._request('/api/cart/item/remark?' + qs.toString(), {
                 method: 'DELETE'
             });
@@ -688,14 +798,18 @@
             return result;
         }
 
-        async clearAllItemRemarks() {
-            const result = await this._request('/api/cart/items/remarks', { method: 'DELETE' });
+        async clearAllItemRemarks(options = {}) {
+            const qs = new URLSearchParams({
+                clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
+                forceOverwrite: String(options.forceOverwrite || false)
+            });
+            const result = await this._request('/api/cart/items/remarks?' + qs.toString(), { method: 'DELETE' });
             this._emit('remarkChanged', { skuId: null, remark: null, allCleared: true });
             this._emit('cartChanged', result);
             return result;
         }
 
-        async batchSort(sortItems) {
+        async batchSort(sortItems, options = {}) {
             if (!Array.isArray(sortItems)) {
                 throw new Error('sortItems must be an array of {skuId, sortWeight}');
             }
@@ -705,14 +819,18 @@
             }));
             const result = await this._request('/api/cart/items/sort', {
                 method: 'PUT',
-                body: { sortItems: items }
+                body: {
+                    sortItems: items,
+                    clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                    forceOverwrite: options.forceOverwrite || false
+                }
             });
             this._emit('sortChanged', items);
             this._emit('cartChanged', result);
             return result;
         }
 
-        async reorderCartBySkus(orderedSkuIds) {
+        async reorderCartBySkus(orderedSkuIds, options = {}) {
             if (!Array.isArray(orderedSkuIds)) {
                 throw new Error('orderedSkuIds must be an array');
             }
@@ -720,7 +838,7 @@
                 skuId,
                 sortWeight: (idx + 1) * 10
             }));
-            return this.batchSort(sortItems);
+            return this.batchSort(sortItems, options);
         }
 
         async checkInventory(items) {

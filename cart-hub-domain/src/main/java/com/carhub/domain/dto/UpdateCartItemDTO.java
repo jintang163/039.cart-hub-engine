@@ -34,4 +34,8 @@ public class UpdateCartItemDTO implements Serializable {
 
     private Map<String, Object> extInfo;
 
+    private Long clientVersion;
+
+    private Boolean forceOverwrite = false;
+
 }
