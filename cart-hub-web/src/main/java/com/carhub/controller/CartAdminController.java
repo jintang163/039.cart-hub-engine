@@ -122,19 +122,28 @@ public class CartAdminController {
         return R.ok(cartPriceDropNotifyService.getPriceDropInfo(tenantId, bizType, userId));
     }
 
-    @ApiOperation("手动触发放弃购物车优惠券推送任务")
+    @ApiOperation("手动触发放弃购物车优惠券推送任务（全租户）")
     @PostMapping("/abandoned-cart/trigger")
     public R<String> triggerAbandonedCartScan() {
-        int count = abandonedCartCouponService.triggerManualScan();
-        return R.ok("放弃购物车优惠券推送任务已触发，处理用户数: " + count);
+        int count = abandonedCartCouponService.triggerManualScanAll();
+        return R.ok("放弃购物车优惠券推送任务已触发（全租户），处理用户数: " + count);
+    }
+
+    @ApiOperation("手动触发指定租户放弃购物车优惠券推送任务")
+    @PostMapping("/abandoned-cart/trigger-by-tenant")
+    public R<String> triggerAbandonedCartScanByTenant(
+            @RequestParam(required = false, defaultValue = "default") String tenantId,
+            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+        int count = abandonedCartCouponService.triggerManualScan(tenantId, bizType);
+        return R.ok("放弃购物车优惠券推送任务已触发（tenantId=" + tenantId + ", bizType=" + bizType + "），处理用户数: " + count);
     }
 
     @ApiOperation("获取放弃购物车优惠券推送统计")
     @GetMapping("/abandoned-cart/statistics")
     public R<Map<String, Object>> getAbandonedCartStatistics(
             @RequestParam(required = false) String date,
-            @RequestParam(required = false, defaultValue = "default") String tenantId,
-            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+            @RequestParam(required = false) String tenantId,
+            @RequestParam(required = false) String bizType) {
         return R.ok(abandonedCartCouponService.getStatistics(tenantId, bizType, date));
     }
 

@@ -1070,6 +1070,7 @@
             if (!this._trackEnabled) return;
             if (!eventName) return;
 
+            const mergedProps = Object.assign({}, this._trackSuperProperties, properties);
             const event = {
                 eventType: eventName,
                 eventId: 'evt_' + _guid(),
@@ -1081,8 +1082,38 @@
                 sessionId: this._trackSessionId,
                 source: this.source,
                 clientVersion: VERSION,
-                properties: Object.assign({}, this._trackSuperProperties, properties)
+                properties: mergedProps
             };
+
+            if (mergedProps.skuId !== undefined) event.skuId = String(mergedProps.skuId);
+            if (mergedProps.spuId !== undefined) event.spuId = String(mergedProps.spuId);
+            if (mergedProps.categoryId !== undefined) event.categoryId = String(mergedProps.categoryId);
+            if (mergedProps.categoryName !== undefined) event.categoryName = String(mergedProps.categoryName);
+            if (mergedProps.shopId !== undefined) event.shopId = String(mergedProps.shopId);
+            if (mergedProps.itemName !== undefined) event.itemName = String(mergedProps.itemName);
+            if (mergedProps.itemImage !== undefined) event.itemImage = String(mergedProps.itemImage);
+            if (mergedProps.unitPrice !== undefined) event.unitPrice = Number(mergedProps.unitPrice);
+            if (mergedProps.originalPrice !== undefined) event.originalPrice = Number(mergedProps.originalPrice);
+            if (mergedProps.quantity !== undefined) event.quantity = Number(mergedProps.quantity);
+            if (mergedProps.oldQuantity !== undefined) event.oldQuantity = Number(mergedProps.oldQuantity);
+            if (mergedProps.newQuantity !== undefined) event.newQuantity = Number(mergedProps.newQuantity);
+            if (mergedProps.delta !== undefined) event.delta = Number(mergedProps.delta);
+            if (mergedProps.checkoutToken !== undefined) event.checkoutToken = String(mergedProps.checkoutToken);
+            if (mergedProps.totalAmount !== undefined) event.cartTotalAmount = Number(mergedProps.totalAmount);
+            if (mergedProps.cartTotalAmount !== undefined) event.cartTotalAmount = Number(mergedProps.cartTotalAmount);
+            if (mergedProps.itemCount !== undefined) event.cartItemCount = Number(mergedProps.itemCount);
+            if (mergedProps.cartItemCount !== undefined) event.cartItemCount = Number(mergedProps.cartItemCount);
+            if (mergedProps.couponId !== undefined) event.couponId = String(mergedProps.couponId);
+            if (mergedProps.couponCode !== undefined) event.couponCode = String(mergedProps.couponCode);
+            if (mergedProps.discountAmount !== undefined) event.discountAmount = Number(mergedProps.discountAmount);
+            if (mergedProps.orderNo !== undefined) event.orderNo = String(mergedProps.orderNo);
+            if (mergedProps.payAmount !== undefined) event.payAmount = Number(mergedProps.payAmount);
+            if (mergedProps.cancelReason !== undefined) event.cancelReason = String(mergedProps.cancelReason);
+            if (mergedProps.addSource !== undefined) event.addSource = String(mergedProps.addSource);
+            if (mergedProps.elementId !== undefined) event.elementId = String(mergedProps.elementId);
+            if (mergedProps.elementClass !== undefined) event.elementClass = String(mergedProps.elementClass);
+            if (mergedProps.elementText !== undefined) event.elementText = String(mergedProps.elementText);
+            if (mergedProps.position !== undefined) event.position = Number(mergedProps.position);
 
             if (typeof window !== 'undefined') {
                 event.pageUrl = window.location.href;

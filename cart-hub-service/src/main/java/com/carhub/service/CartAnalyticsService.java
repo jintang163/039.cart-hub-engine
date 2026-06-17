@@ -208,8 +208,117 @@ public class CartAnalyticsService {
             event.setClientIp(CartContextHolder.getClientIp());
         }
 
+        Map<String, Object> props = event.getProperties();
+        if (props != null && !props.isEmpty()) {
+            if (StringUtils.isBlank(event.getSkuId()) && props.containsKey("skuId")) {
+                event.setSkuId(String.valueOf(props.get("skuId")));
+            }
+            if (StringUtils.isBlank(event.getSpuId()) && props.containsKey("spuId")) {
+                event.setSpuId(String.valueOf(props.get("spuId")));
+            }
+            if (StringUtils.isBlank(event.getCategoryId()) && props.containsKey("categoryId")) {
+                event.setCategoryId(String.valueOf(props.get("categoryId")));
+            }
+            if (StringUtils.isBlank(event.getCategoryName()) && props.containsKey("categoryName")) {
+                event.setCategoryName(String.valueOf(props.get("categoryName")));
+            }
+            if (StringUtils.isBlank(event.getShopId()) && props.containsKey("shopId")) {
+                event.setShopId(String.valueOf(props.get("shopId")));
+            }
+            if (StringUtils.isBlank(event.getItemName()) && props.containsKey("itemName")) {
+                event.setItemName(String.valueOf(props.get("itemName")));
+            }
+            if (StringUtils.isBlank(event.getItemImage()) && props.containsKey("itemImage")) {
+                event.setItemImage(String.valueOf(props.get("itemImage")));
+            }
+            if (event.getUnitPrice() == null && props.containsKey("unitPrice")) {
+                event.setUnitPrice(toBigDecimal(props.get("unitPrice")));
+            }
+            if (event.getOriginalPrice() == null && props.containsKey("originalPrice")) {
+                event.setOriginalPrice(toBigDecimal(props.get("originalPrice")));
+            }
+            if (event.getQuantity() == null && props.containsKey("quantity")) {
+                event.setQuantity(toInteger(props.get("quantity")));
+            }
+            if (event.getOldQuantity() == null && props.containsKey("oldQuantity")) {
+                event.setOldQuantity(toInteger(props.get("oldQuantity")));
+            }
+            if (event.getNewQuantity() == null && props.containsKey("newQuantity")) {
+                event.setNewQuantity(toInteger(props.get("newQuantity")));
+            }
+            if (event.getDelta() == null && props.containsKey("delta")) {
+                event.setDelta(toInteger(props.get("delta")));
+            }
+            if (StringUtils.isBlank(event.getCheckoutToken()) && props.containsKey("checkoutToken")) {
+                event.setCheckoutToken(String.valueOf(props.get("checkoutToken")));
+            }
+            if (event.getCartTotalAmount() == null && props.containsKey("totalAmount")) {
+                event.setCartTotalAmount(toBigDecimal(props.get("totalAmount")));
+            }
+            if (event.getCartTotalAmount() == null && props.containsKey("cartTotalAmount")) {
+                event.setCartTotalAmount(toBigDecimal(props.get("cartTotalAmount")));
+            }
+            if (event.getCartItemCount() == null && props.containsKey("itemCount")) {
+                event.setCartItemCount(toInteger(props.get("itemCount")));
+            }
+            if (event.getCartItemCount() == null && props.containsKey("cartItemCount")) {
+                event.setCartItemCount(toInteger(props.get("cartItemCount")));
+            }
+            if (StringUtils.isBlank(event.getCouponId()) && props.containsKey("couponId")) {
+                event.setCouponId(String.valueOf(props.get("couponId")));
+            }
+            if (StringUtils.isBlank(event.getCouponCode()) && props.containsKey("couponCode")) {
+                event.setCouponCode(String.valueOf(props.get("couponCode")));
+            }
+            if (event.getDiscountAmount() == null && props.containsKey("discountAmount")) {
+                event.setDiscountAmount(toBigDecimal(props.get("discountAmount")));
+            }
+            if (StringUtils.isBlank(event.getOrderNo()) && props.containsKey("orderNo")) {
+                event.setOrderNo(String.valueOf(props.get("orderNo")));
+            }
+            if (event.getPayAmount() == null && props.containsKey("payAmount")) {
+                event.setPayAmount(toBigDecimal(props.get("payAmount")));
+            }
+            if (StringUtils.isBlank(event.getCancelReason()) && props.containsKey("cancelReason")) {
+                event.setCancelReason(String.valueOf(props.get("cancelReason")));
+            }
+            if (StringUtils.isBlank(event.getAddSource()) && props.containsKey("addSource")) {
+                event.setAddSource(String.valueOf(props.get("addSource")));
+            }
+            if (StringUtils.isBlank(event.getElementId()) && props.containsKey("elementId")) {
+                event.setElementId(String.valueOf(props.get("elementId")));
+            }
+            if (StringUtils.isBlank(event.getElementClass()) && props.containsKey("elementClass")) {
+                event.setElementClass(String.valueOf(props.get("elementClass")));
+            }
+            if (StringUtils.isBlank(event.getElementText()) && props.containsKey("elementText")) {
+                event.setElementText(String.valueOf(props.get("elementText")));
+            }
+            if (event.getPosition() == null && props.containsKey("position")) {
+                event.setPosition(toInteger(props.get("position")));
+            }
+        }
+
         LocalDateTime eventTime = new java.sql.Timestamp(event.getTimestamp()).toLocalDateTime();
         event.setTraceId(event.getTraceId() != null ? event.getTraceId() : "");
+    }
+
+    private BigDecimal toBigDecimal(Object val) {
+        if (val == null) return null;
+        try {
+            return new BigDecimal(String.valueOf(val));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Integer toInteger(Object val) {
+        if (val == null) return null;
+        try {
+            return Integer.valueOf(String.valueOf(val));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public void insertEventToClickHouse(CartEventDTO event) {
@@ -528,9 +637,15 @@ public class CartAnalyticsService {
     }
 
     private BigDecimal getAvgCheckoutDuration(String tenantId, String bizType, String startDate, String endDate) {
-        String sql = "SELECT avg(duration_seconds) as avg_duration " +
-                "FROM " + TABLE_CHECKOUT_SESSIONS + " " +
-                "WHERE tenant_id = ? AND date >= ? AND date <= ? AND status = 'completed' ";
+        String sql = "SELECT avg(duration_seconds) as avg_duration FROM (" +
+                "  SELECT " +
+                "    checkout_token, " +
+                "    (toUnixTimestamp(max(if(event_type = 'checkout_confirm', timestamp, null))) - " +
+                "     toUnixTimestamp(min(if(event_type = 'checkout_create', timestamp, null)))) as duration_seconds " +
+                "  FROM " + TABLE_CART_EVENTS + " " +
+                "  WHERE tenant_id = ? AND date >= ? AND date <= ? " +
+                "    AND event_type IN ('checkout_create', 'checkout_confirm') " +
+                "    AND checkout_token != '' ";
 
         List<Object> params = new ArrayList<>();
         params.add(tenantId);
@@ -541,6 +656,11 @@ public class CartAnalyticsService {
             sql += "AND biz_type = ? ";
             params.add(bizType);
         }
+
+        sql += "  GROUP BY checkout_token " +
+                "  HAVING duration_seconds IS NOT NULL AND duration_seconds > 0 " +
+                "     AND duration_seconds < 86400" +
+                ") WHERE duration_seconds IS NOT NULL";
 
         try (Connection conn = clickHouseDataSource.getConnection();
              PreparedStatement pstmt = buildPreparedStatement(conn, sql, params);
@@ -715,15 +835,26 @@ public class CartAnalyticsService {
         List<CheckoutDurationVO> result = new ArrayList<>();
 
         String sql = "SELECT " +
-                "date, " +
-                "count(*) as total_checkouts, " +
-                "sum(if(status = 'completed', 1, 0)) as completed_checkouts, " +
-                "sum(if(status = 'abandoned', 1, 0)) as abandoned_checkouts, " +
-                "avg(duration_seconds) as avg_duration, " +
-                "avg(item_count) as avg_items, " +
-                "avg(total_amount) as avg_amount " +
-                "FROM " + TABLE_CHECKOUT_SESSIONS + " " +
-                "WHERE tenant_id = ? AND date >= ? AND date <= ? ";
+                "  date, " +
+                "  count(distinct if(event_type = 'checkout_create', checkout_token, null)) as total_checkouts, " +
+                "  count(distinct if(event_type = 'checkout_confirm', checkout_token, null)) as completed_checkouts, " +
+                "  (count(distinct if(event_type = 'checkout_create', checkout_token, null)) - " +
+                "   count(distinct if(event_type = 'checkout_confirm', checkout_token, null))) as abandoned_checkouts, " +
+                "  avg(if(duration_seconds > 0 AND duration_seconds < 86400, duration_seconds, null)) as avg_duration, " +
+                "  avg(cart_item_count) as avg_items, " +
+                "  avg(cart_total_amount) as avg_amount " +
+                "FROM (" +
+                "  SELECT " +
+                "    date, " +
+                "    checkout_token, " +
+                "    (toUnixTimestamp(max(if(event_type = 'checkout_confirm', timestamp, null))) - " +
+                "     toUnixTimestamp(min(if(event_type = 'checkout_create', timestamp, null)))) as duration_seconds, " +
+                "    max(cart_item_count) as cart_item_count, " +
+                "    max(cart_total_amount) as cart_total_amount " +
+                "  FROM " + TABLE_CART_EVENTS + " " +
+                "  WHERE tenant_id = ? AND date >= ? AND date <= ? " +
+                "    AND event_type IN ('checkout_create', 'checkout_confirm', 'checkout_cancel') " +
+                "    AND checkout_token != '' ";
 
         List<Object> params = new ArrayList<>();
         params.add(tenantId);
@@ -735,7 +866,8 @@ public class CartAnalyticsService {
             params.add(bizType);
         }
 
-        sql += "GROUP BY date ORDER BY date ASC";
+        sql += "  GROUP BY date, checkout_token" +
+                ") GROUP BY date ORDER BY date ASC";
 
         try (Connection conn = clickHouseDataSource.getConnection();
              PreparedStatement pstmt = buildPreparedStatement(conn, sql, params);
