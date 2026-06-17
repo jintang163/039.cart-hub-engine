@@ -529,8 +529,13 @@ public class CartService {
 
     private CartVO afterWriteReturn(CartVO cartVO) {
         try {
-            if (cartSnapshotService != null) {
-                cartSnapshotService.createDailySnapshotIfAbsent();
+            if (cartSnapshotService != null && cartVO != null
+                    && org.apache.commons.lang3.StringUtils.isNotBlank(cartVO.getUserId())) {
+                cartSnapshotService.createDailySnapshotAsync(
+                        cartVO.getTenantId(),
+                        cartVO.getBizType(),
+                        cartVO.getUserId()
+                );
             }
         } catch (Exception e) {
             log.warn("Trigger daily snapshot failed", e);
