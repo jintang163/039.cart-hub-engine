@@ -3,6 +3,7 @@ package com.carhub.controller;
 import com.carhub.common.result.R;
 import com.carhub.domain.entity.BizConfigEntity;
 import com.carhub.service.BizConfigService;
+import com.carhub.service.AbandonedCartCouponService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class CartAdminController {
     private final CartStatisticsService cartStatisticsService;
     private final CartExpireCleanupService cartExpireCleanupService;
     private final CartPriceDropNotifyService cartPriceDropNotifyService;
+    private final AbandonedCartCouponService abandonedCartCouponService;
 
     @ApiOperation("获取购物车使用统计概览")
     @GetMapping("/statistics/overview")
@@ -118,6 +120,22 @@ public class CartAdminController {
             @RequestParam(required = false, defaultValue = "default") String tenantId,
             @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
         return R.ok(cartPriceDropNotifyService.getPriceDropInfo(tenantId, bizType, userId));
+    }
+
+    @ApiOperation("手动触发放弃购物车优惠券推送任务")
+    @PostMapping("/abandoned-cart/trigger")
+    public R<String> triggerAbandonedCartScan() {
+        int count = abandonedCartCouponService.triggerManualScan();
+        return R.ok("放弃购物车优惠券推送任务已触发，处理用户数: " + count);
+    }
+
+    @ApiOperation("获取放弃购物车优惠券推送统计")
+    @GetMapping("/abandoned-cart/statistics")
+    public R<Map<String, Object>> getAbandonedCartStatistics(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false, defaultValue = "default") String tenantId,
+            @RequestParam(required = false, defaultValue = "ecommerce") String bizType) {
+        return R.ok(abandonedCartCouponService.getStatistics(tenantId, bizType, date));
     }
 
 }

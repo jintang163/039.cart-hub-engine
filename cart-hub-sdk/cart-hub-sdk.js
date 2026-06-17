@@ -52,6 +52,7 @@
             this.eventListeners = {};
             this._anonymousId = this._getAnonymousId();
             this._localCache = this._loadLocalCache();
+            this._initTracking(options);
             this._log('initialized', {
                 baseUrl: this.baseUrl,
                 tenantId: this.tenantId,
@@ -911,6 +912,362 @@
             this.eventListeners[event].forEach(cb => {
                 try { cb(data); } catch (e) { this._log('listener error', event, e); }
             });
+        }
+
+        _initTracking(options) {
+            this._trackEnabled = options.trackEnabled !== false;
+            this._trackAuto = options.trackAuto !== false;
+            this._trackBatchSize = options.trackBatchSize || 20;
+            this._trackFlushInterval = options.trackFlushInterval || 5000;
+            this._trackEndpoint = options.trackEndpoint || '/api/track';
+            this._trackEvents = [];
+            this._trackSessionId = this._getSessionId();
+            this._trackFlushTimer = null;
+            this._trackClickSelector = options.trackClickSelector || '[data-track]';
+            this._trackSuperProperties = options.trackSuperProperties || {};
+
+            if (this._trackAuto) {
+                this._setupAutoTracking();
+            }
+
+            this._startFlushTimer();
+
+            this._log('tracking initialized', {
+                enabled: this._trackEnabled,
+                auto: this._trackAuto,
+                batchSize: this._trackBatchSize,
+                flushInterval: this._trackFlushInterval
+            });
+        }
+
+        _getSessionId() {
+            const key = STORAGE_KEY_PREFIX + 'session_id';
+            let session = sessionStorage.getItem(key);
+            if (!session) {
+                session = 'sess_' + _guid();
+                sessionStorage.setItem(key, session);
+            }
+            return session;
+        }
+
+        _setupAutoTracking() {
+            const self = this;
+
+            this.on('itemAdded', function (data) {
+                const item = data.item || {};
+                self.track('add_to_cart', {
+                    skuId: item.skuId,
+                    spuId: item.spuId,
+                    categoryId: item.categoryId,
+                    categoryName: item.categoryName,
+                    shopId: item.shopId,
+                    itemName: item.itemName,
+                    itemImage: item.itemImage,
+                    unitPrice: item.unitPrice,
+                    originalPrice: item.originalPrice,
+                    quantity: item.quantity || 1,
+                    addSource: item.addSource
+                });
+            });
+
+            this.on('itemRemoved', function (data) {
+                self.track('remove_from_cart', {
+                    skuId: data.skuId
+                });
+            });
+
+            this.on('quantityChanged', function (data) {
+                self.track('update_quantity', {
+                    skuId: data.skuId,
+                    delta: data.delta,
+                    newQuantity: data.newQuantity
+                });
+            });
+
+            this.on('cartCleared', function () {
+                self.track('clear_cart', {});
+            });
+
+            this.on('checkoutCreated', function (data) {
+                self.track('checkout_create', {
+                    checkoutToken: data.checkoutToken,
+                    totalAmount: data.totalAmount,
+                    itemCount: data.itemCount,
+                    skuIds: data.skuIds
+                });
+            });
+
+            this.on('checkoutConfirmed', function (data) {
+                self.track('checkout_confirm', {
+                    checkoutToken: data.checkoutToken,
+                    orderNo: data.orderNo,
+                    payAmount: data.payAmount
+                });
+            });
+
+            this.on('checkoutCanceled', function (data) {
+                self.track('checkout_cancel', {
+                    checkoutToken: data.checkoutToken
+                });
+            });
+
+            this._setupClickTracking();
+
+            this._trackPageView();
+
+            if (typeof window !== 'undefined' && window.addEventListener) {
+                window.addEventListener('beforeunload', function () {
+                    self._flushEvents(true);
+                });
+                document.addEventListener('visibilitychange', function () {
+                    if (document.visibilityState === 'hidden') {
+                        self._flushEvents(true);
+                    }
+                });
+            }
+        }
+
+        _setupClickTracking() {
+            const self = this;
+            if (typeof document === 'undefined' || !document.addEventListener) return;
+
+            document.addEventListener('click', function (e) {
+                const target = e.target.closest(self._trackClickSelector);
+                if (target) {
+                    const eventName = target.getAttribute('data-track-event') || 'click';
+                    const eventData = {};
+                    const attrs = target.attributes;
+                    for (let i = 0; i < attrs.length; i++) {
+                        const attr = attrs[i];
+                        if (attr.name.startsWith('data-track-') && attr.name !== 'data-track-event') {
+                            const key = attr.name.substring(11).replace(/-([a-z])/g, function (g) { return g[1].toUpperCase(); });
+                            eventData[key] = attr.value;
+                        }
+                    }
+                    eventData.elementId = target.id;
+                    eventData.elementClass = target.className;
+                    eventData.elementText = target.textContent ? target.textContent.trim().substring(0, 100) : '';
+
+                    self.track(eventName, eventData);
+                }
+            }, true);
+        }
+
+        _trackPageView() {
+            if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+            this.track('page_view', {
+                pageUrl: window.location.href,
+                pageTitle: document.title,
+                referrer: document.referrer,
+                screenWidth: window.screen ? window.screen.width : 0,
+                screenHeight: window.screen ? window.screen.height : 0,
+                language: navigator ? navigator.language : ''
+            });
+        }
+
+        track(eventName, properties) {
+            if (!this._trackEnabled) return;
+            if (!eventName) return;
+
+            const event = {
+                eventType: eventName,
+                eventId: 'evt_' + _guid(),
+                timestamp: Date.now(),
+                tenantId: this.tenantId,
+                bizType: this.bizType,
+                userId: this.userId,
+                anonymousId: this._anonymousId,
+                sessionId: this._trackSessionId,
+                source: this.source,
+                clientVersion: VERSION,
+                properties: Object.assign({}, this._trackSuperProperties, properties)
+            };
+
+            if (typeof window !== 'undefined') {
+                event.pageUrl = window.location.href;
+                event.pageTitle = document ? document.title : '';
+                event.userAgent = navigator ? navigator.userAgent : '';
+            }
+
+            this._trackEvents.push(event);
+            this._emit('trackEvent', event);
+            this._log('track event', eventName, event);
+
+            if (this._trackEvents.length >= this._trackBatchSize) {
+                this._flushEvents();
+            }
+        }
+
+        setSuperProperty(key, value) {
+            if (key) {
+                this._trackSuperProperties[key] = value;
+            }
+        }
+
+        setSuperProperties(props) {
+            if (props && typeof props === 'object') {
+                Object.assign(this._trackSuperProperties, props);
+            }
+        }
+
+        getSuperProperties() {
+            return Object.assign({}, this._trackSuperProperties);
+        }
+
+        clearSuperProperties() {
+            this._trackSuperProperties = {};
+        }
+
+        _startFlushTimer() {
+            const self = this;
+            if (this._trackFlushTimer) {
+                clearInterval(this._trackFlushTimer);
+            }
+            this._trackFlushTimer = setInterval(function () {
+                if (self._trackEvents.length > 0) {
+                    self._flushEvents();
+                }
+            }, this._trackFlushInterval);
+        }
+
+        _flushEvents(sync) {
+            if (!this._trackEnabled || this._trackEvents.length === 0) return;
+
+            const events = this._trackEvents.slice();
+            this._trackEvents = [];
+
+            const self = this;
+            const url = this.baseUrl + this._trackEndpoint + '/events';
+            const body = JSON.stringify(events);
+
+            if (sync && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+                try {
+                    const blob = new Blob([body], { type: 'application/json' });
+                    navigator.sendBeacon(url, blob);
+                    this._log('flush events via beacon', events.length);
+                    return;
+                } catch (e) {
+                    this._log('beacon failed, fallback to fetch', e);
+                }
+            }
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Tenant-Id': this.tenantId,
+                'X-Biz-Type': this.bizType,
+                'X-User-Id': this._getCurrentUserId(),
+                'X-Source': this.source,
+                'X-Client-Version': VERSION
+            };
+
+            if (typeof this.onBeforeRequest === 'function') {
+                Object.assign(headers, this.onBeforeRequest() || {});
+            }
+
+            if (this.token) {
+                headers['Authorization'] = 'Bearer ' + this.token;
+            }
+
+            const fetchOptions = {
+                method: 'POST',
+                headers: headers,
+                body: body
+            };
+
+            if (sync) {
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', url, false);
+                    Object.keys(headers).forEach(function (key) {
+                        xhr.setRequestHeader(key, headers[key]);
+                    });
+                    xhr.send(body);
+                    this._log('flush events sync', events.length);
+                } catch (e) {
+                    this._log('sync flush failed', e);
+                    this._trackEvents = events.concat(this._trackEvents);
+                }
+            } else {
+                fetch(url, fetchOptions)
+                    .then(function (res) { return res.text(); })
+                    .then(function () {
+                        self._log('flush events success', events.length);
+                    })
+                    .catch(function (err) {
+                        self._log('flush events failed', err);
+                        self._trackEvents = events.concat(self._trackEvents);
+                        if (self._trackEvents.length > 1000) {
+                            self._trackEvents = self._trackEvents.slice(-500);
+                        }
+                    });
+            }
+        }
+
+        flushEvents() {
+            this._flushEvents();
+        }
+
+        getPendingEventCount() {
+            return this._trackEvents.length;
+        }
+
+        trackAddToCart(item) {
+            this.track('add_to_cart', {
+                skuId: item.skuId,
+                spuId: item.spuId,
+                categoryId: item.categoryId,
+                categoryName: item.categoryName,
+                shopId: item.shopId,
+                itemName: item.itemName,
+                itemImage: item.itemImage,
+                unitPrice: item.unitPrice,
+                originalPrice: item.originalPrice,
+                quantity: item.quantity || 1,
+                addSource: item.addSource
+            });
+        }
+
+        trackRemoveFromCart(skuId) {
+            this.track('remove_from_cart', { skuId: skuId });
+        }
+
+        trackUpdateQuantity(skuId, oldQty, newQty) {
+            this.track('update_quantity', {
+                skuId: skuId,
+                oldQuantity: oldQty,
+                newQuantity: newQty,
+                delta: newQty - oldQty
+            });
+        }
+
+        trackCheckoutClick(position) {
+            this.track('checkout_click', {
+                position: position || 'default'
+            });
+        }
+
+        trackCheckoutCreate(checkoutData) {
+            this.track('checkout_create', checkoutData || {});
+        }
+
+        trackCheckoutConfirm(checkoutData) {
+            this.track('checkout_confirm', checkoutData || {});
+        }
+
+        trackCheckoutCancel(checkoutToken) {
+            this.track('checkout_cancel', { checkoutToken: checkoutToken });
+        }
+
+        trackApplyCoupon(couponId, couponCode) {
+            this.track('apply_coupon', {
+                couponId: couponId,
+                couponCode: couponCode
+            });
+        }
+
+        trackRemoveCoupon(couponId) {
+            this.track('remove_coupon', { couponId: couponId });
         }
 
         static create(options) {

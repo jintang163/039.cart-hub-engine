@@ -77,6 +77,23 @@ export declare class CartHubSDK {
     off<K extends keyof CartHubEventMap>(event: K, callback: (data: CartHubEventMap[K]) => void): void;
     off(event: string, callback: (data: any) => void): void;
 
+    track(eventName: string, properties?: Record<string, any>): void;
+    trackAddToCart(item: CartItemInput): void;
+    trackRemoveFromCart(skuId: string): void;
+    trackUpdateQuantity(skuId: string, oldQty: number, newQty: number): void;
+    trackCheckoutClick(position?: string): void;
+    trackCheckoutCreate(checkoutData?: Record<string, any>): void;
+    trackCheckoutConfirm(checkoutData?: Record<string, any>): void;
+    trackCheckoutCancel(checkoutToken: string): void;
+    trackApplyCoupon(couponId: string, couponCode?: string): void;
+    trackRemoveCoupon(couponId: string): void;
+    setSuperProperty(key: string, value: any): void;
+    setSuperProperties(props: Record<string, any>): void;
+    getSuperProperties(): Record<string, any>;
+    clearSuperProperties(): void;
+    flushEvents(): void;
+    getPendingEventCount(): number;
+
     onBeforeRequest?: () => Record<string, string>;
 }
 
@@ -89,6 +106,13 @@ export interface CartHubOptions {
     source?: 'web' | 'app' | 'mini' | string;
     timeout?: number;
     debug?: boolean;
+    trackEnabled?: boolean;
+    trackAuto?: boolean;
+    trackBatchSize?: number;
+    trackFlushInterval?: number;
+    trackEndpoint?: string;
+    trackClickSelector?: string;
+    trackSuperProperties?: Record<string, any>;
 }
 
 export interface CartItemInput {
@@ -217,6 +241,23 @@ export interface MergeFailedEvent {
     items: CartItemInput[];
 }
 
+export interface TrackEvent {
+    eventType: string;
+    eventId: string;
+    timestamp: number;
+    tenantId: string;
+    bizType: string;
+    userId?: string;
+    anonymousId: string;
+    sessionId: string;
+    source: string;
+    clientVersion: string;
+    pageUrl?: string;
+    pageTitle?: string;
+    userAgent?: string;
+    properties: Record<string, any>;
+}
+
 export type CartHubEventMap = {
     userChanged: UserChangedEvent;
     merged: MergeResultPayload;
@@ -235,6 +276,7 @@ export type CartHubEventMap = {
     priceDropUnsubscribed: { skuId: string; result: any };
     priceDropBatchUnsubscribed: { skuIds?: string[]; result: any };
     priceDropInfoLoaded: PriceDropInfo;
+    trackEvent: TrackEvent;
     error: { url: string; error: any };
     success: { url: string; data: any };
 };

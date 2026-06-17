@@ -150,6 +150,25 @@ cart-hub:
     subscription-expire-days: 180
     notify-cooldown-hours: 24
 
+clickhouse:
+  url: jdbc:clickhouse://127.0.0.1:8123/cart_hub_analytics
+  username: default
+  password:
+  database: cart_hub_analytics
+  socket-timeout: 30000
+  connection-timeout: 10000
+
+analytics:
+  kafka-topic: cart_event_topic
+  enable-kafka-consumer: true
+  abandoned-cart:
+    enable: true
+    threshold-minutes: 60
+    check-cron: "0 */30 * * * ?"
+    coupon-template-id: ABANDONED_CART_COUPON
+    notify-channels: wechat,sms
+    notify-api-url: http://localhost:8081/notify/send
+
 knife4j:
   enable: true
   openapi:
