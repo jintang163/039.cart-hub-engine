@@ -116,9 +116,11 @@ cart-hub:
   checkout:
     expire-minutes: 15
     enable-stock-lock: true
+    enable-stock-check: true
     mock-stock: true
     stock-lock-url: http://localhost:8081/stock/lock
     stock-release-url: http://localhost:8081/stock/release
+    stock-check-url: http://localhost:8081/stock/check
     stock-timeout-ms: 3000
     max-concurrent-per-user: 3
     notify-url: http://localhost:8081/notify/checkout

@@ -87,6 +87,20 @@ export declare class CartHubSDK {
     trackCheckoutCancel(checkoutToken: string): void;
     trackApplyCoupon(couponId: string, couponCode?: string): void;
     trackRemoveCoupon(couponId: string): void;
+    trackInventoryShortage(shortageItems: InventoryItemVO[]): void;
+
+    checkInventory(items: InventoryItemDTO[]): Promise<InventoryCheckVO>;
+    checkCartInventory(autoDeselect?: boolean): Promise<InventoryCheckVO>;
+    getCartWithInventory(validate?: boolean, autoDeselect?: boolean): Promise<CartVO & {
+        inventoryStatus?: InventoryStatus;
+        inventoryError?: string;
+    }>;
+    applyInventoryStatusToCart(cart: any, inventoryResult: InventoryCheckVO): any;
+    applyStockShortageStyles(containerSelector?: string, options?: {
+        itemSelector?: string;
+        checkboxSelector?: string;
+    }): void;
+
     setSuperProperty(key: string, value: any): void;
     setSuperProperties(props: Record<string, any>): void;
     getSuperProperties(): Record<string, any>;
@@ -113,6 +127,8 @@ export interface CartHubOptions {
     trackEndpoint?: string;
     trackClickSelector?: string;
     trackSuperProperties?: Record<string, any>;
+    checkInventoryBeforeCheckout?: boolean;
+    autoDeselectShortage?: boolean;
 }
 
 export interface CartItemInput {
@@ -271,6 +287,10 @@ export type CartHubEventMap = {
     quantityChanged: { skuId: string; delta: number; result: any; local?: boolean };
     cartCleared: any;
     cartLoaded: any;
+    cartWithInventoryLoaded: any;
+    inventoryStatusApplied: any;
+    checkoutStockShortage: InventoryCheckVO;
+    checkoutCreatedWithStockShortage: any;
     expireInfoLoaded: CartExpireInfo;
     priceDropSubscribed: { skuId: string; targetPrice?: number; result: any };
     priceDropUnsubscribed: { skuId: string; result: any };
@@ -606,3 +626,42 @@ export interface RecommendItemVO {
 }
 
 export default CartHubSDK;
+
+export interface InventoryItemDTO {
+    skuId: string;
+    spuId?: string;
+    quantity?: number;
+    itemName?: string;
+}
+
+export interface InventoryItemVO {
+    skuId: string;
+    spuId?: string;
+    itemName?: string;
+    itemImage?: string;
+    requestedQuantity?: number;
+    availableQuantity?: number;
+    stock?: number;
+    available: boolean;
+    shortageReason?: string;
+    categoryId?: string;
+    categoryName?: string;
+    shopId?: string;
+    unitPrice?: number;
+}
+
+export interface InventoryCheckVO {
+    allAvailable: boolean;
+    hasShortage: boolean;
+    items: InventoryItemVO[];
+    shortageItems: InventoryItemVO[];
+}
+
+export interface InventoryStatus {
+    allAvailable: boolean;
+    hasShortage: boolean;
+    shortageCount: number;
+    shortageSkuIds: string[];
+    shortageItems: InventoryItemVO[];
+}
+

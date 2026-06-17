@@ -49,6 +49,10 @@
             this.source = options.source || 'web';
             this.timeout = options.timeout || 10000;
             this.debug = !!options.debug;
+            this.options = {
+                checkInventoryBeforeCheckout: options.checkInventoryBeforeCheckout !== false,
+                autoDeselectShortage: options.autoDeselectShortage !== false
+            };
             this.eventListeners = {};
             this._anonymousId = this._getAnonymousId();
             this._localCache = this._loadLocalCache();
@@ -696,6 +700,169 @@
             return this.batchSort(sortItems);
         }
 
+        async checkInventory(items) {
+            if (!items || !items.length) {
+                return { allAvailable: true, hasShortage: false, items: [], shortageItems: [] };
+            }
+            const result = await this._request('/api/inventory/check', {
+                method: 'POST',
+                body: { items: items }
+            });
+            if (result && result.hasShortage && result.shortageItems) {
+                this._trackInventoryShortage(result.shortageItems);
+            }
+            return result;
+        }
+
+        async checkCartInventory(autoDeselect = false) {
+            if (!this.isLoggedIn()) {
+                return { allAvailable: true, hasShortage: false, items: [], shortageItems: [] };
+            }
+            const result = await this._request('/api/inventory/check-cart?autoDeselect=' + autoDeselect);
+            if (result && result.hasShortage && result.shortageItems) {
+                this._trackInventoryShortage(result.shortageItems);
+            }
+            return result;
+        }
+
+        async getCartWithInventory(validate = true, autoDeselect = false) {
+            const cart = await this.getCart(validate);
+            if (!this.isLoggedIn() || cart.local) {
+                return { ...cart, inventoryStatus: null };
+            }
+            try {
+                const inventory = await this.checkCartInventory(autoDeselect);
+                const cartWithInventory = this.applyInventoryStatusToCart(cart, inventory);
+                this._emit('cartWithInventoryLoaded', cartWithInventory);
+                return cartWithInventory;
+            } catch (e) {
+                this._log('get cart with inventory failed, fallback to normal cart', e);
+                this._emit('cartLoaded', cart);
+                return { ...cart, inventoryStatus: null, inventoryError: e.message };
+            }
+        }
+
+        applyInventoryStatusToCart(cart, inventoryResult) {
+            if (!cart || !cart.items || !inventoryResult) {
+                return cart;
+            }
+            const shortageMap = {};
+            if (inventoryResult.shortageItems) {
+                inventoryResult.shortageItems.forEach(item => {
+                    if (item.skuId) {
+                        shortageMap[item.skuId] = item;
+                    }
+                });
+            }
+            const allStatusMap = {};
+            if (inventoryResult.items) {
+                inventoryResult.items.forEach(item => {
+                    if (item.skuId) {
+                        allStatusMap[item.skuId] = item;
+                    }
+                });
+            }
+            const updatedItems = cart.items.map(item => {
+                const updated = { ...item };
+                const status = allStatusMap[item.skuId];
+                if (status) {
+                    updated.stock = status.stock !== undefined ? status.stock : item.stock;
+                    updated.available = status.available !== undefined ? status.available : true;
+                }
+                const shortage = shortageMap[item.skuId];
+                if (shortage) {
+                    updated.available = false;
+                    updated.invalidMessage = shortage.shortageReason || '库存不足';
+                    if (this.options.autoDeselectShortage !== false) {
+                        updated.selected = false;
+                    }
+                }
+                return updated;
+            });
+            const shortageSkuIds = Object.keys(shortageMap);
+            const result = {
+                ...cart,
+                items: updatedItems,
+                inventoryStatus: {
+                    allAvailable: inventoryResult.allAvailable,
+                    hasShortage: inventoryResult.hasShortage,
+                    shortageCount: shortageSkuIds.length,
+                    shortageSkuIds: shortageSkuIds,
+                    shortageItems: inventoryResult.shortageItems
+                }
+            };
+            if (result.recalculate && typeof result.recalculate === 'function') {
+                result.recalculate();
+            }
+            this._emit('inventoryStatusApplied', result);
+            return result;
+        }
+
+        applyStockShortageStyles(containerSelector = '.cart-items-container', options = {}) {
+            const container = document.querySelector(containerSelector);
+            if (!container) return;
+            const self = this;
+            const itemElements = container.querySelectorAll(options.itemSelector || '.cart-item');
+            itemElements.forEach(el => {
+                const skuId = el.dataset.skuId || el.getAttribute('data-sku-id');
+                if (!skuId) return;
+                const checkbox = el.querySelector(options.checkboxSelector || 'input[type="checkbox"], .item-checkbox');
+                if (checkbox) {
+                    checkbox.addEventListener('change', function (e) {
+                        if (el.classList.contains('stock-shortage')) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.checked = false;
+                            self._showStockShortageToast(el.dataset.shortageReason || '库存不足');
+                        }
+                    });
+                }
+            });
+        }
+
+        _showStockShortageToast(message) {
+            if (typeof this.showToast === 'function') {
+                this.showToast({ type: 'warning', message: message, duration: 2000 });
+            } else if (typeof window !== 'undefined') {
+                try {
+                    const existing = document.querySelector('.cart-stock-shortage-toast');
+                    if (existing) existing.remove();
+                    const toast = document.createElement('div');
+                    toast.className = 'cart-stock-shortage-toast';
+                    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);' +
+                        'background:rgba(245,108,108,0.95);color:#fff;padding:12px 24px;border-radius:8px;' +
+                        'z-index:99999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+                    toast.innerHTML = '⚠️ ' + message;
+                    document.body.appendChild(toast);
+                    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; }, 2000);
+                    setTimeout(() => toast.remove(), 2400);
+                } catch (e) {
+                    console.warn('Failed to show toast', e);
+                }
+            }
+        }
+
+        _trackInventoryShortage(shortageItems) {
+            try {
+                if (!shortageItems || !shortageItems.length) return;
+                this.track('inventory_shortage_warning', {
+                    shortageCount: shortageItems.length,
+                    items: shortageItems,
+                    skuId: shortageItems[0] ? shortageItems[0].skuId : undefined,
+                    spuId: shortageItems[0] ? shortageItems[0].spuId : undefined,
+                    itemName: shortageItems[0] ? shortageItems[0].itemName : undefined,
+                    categoryId: shortageItems[0] ? shortageItems[0].categoryId : undefined,
+                    categoryName: shortageItems[0] ? shortageItems[0].categoryName : undefined,
+                    requestedQuantity: shortageItems[0] ? shortageItems[0].requestedQuantity : undefined,
+                    availableQuantity: shortageItems[0] ? shortageItems[0].availableQuantity : undefined,
+                    stock: shortageItems[0] ? shortageItems[0].stock : undefined,
+                    shortageReason: shortageItems[0] ? shortageItems[0].shortageReason : undefined
+                });
+            } catch (e) {
+                this._log('track inventory shortage failed', e);
+            }
+        }
+
         async createCheckout(options = {}) {
             const body = {
                 skuIds: options.skuIds || null,
@@ -704,10 +871,40 @@
                 remark: options.remark || null,
                 source: options.source || this.source
             };
+
+            if (this.options.checkInventoryBeforeCheckout !== false) {
+                try {
+                    const inventory = await this.checkCartInventory(false);
+                    if (inventory && inventory.hasShortage) {
+                        if (this.options.autoDeselectShortage !== false && !options.skipAutoDeselect) {
+                            this._log('Stock shortage detected, auto deselect and retry checkout');
+                            await this.checkCartInventory(true);
+                        } else {
+                            const err = new Error('商品库存不足');
+                            err.inventoryStatus = inventory;
+                            err.code = 'STOCK_SHORTAGE';
+                            this._emit('checkoutStockShortage', inventory);
+                            throw err;
+                        }
+                    }
+                } catch (e) {
+                    if (e.code === 'STOCK_SHORTAGE') {
+                        throw e;
+                    }
+                    this._log('Pre-checkout inventory check failed, will try to proceed', e);
+                }
+            }
+
             const result = await this._request('/api/checkout', {
                 method: 'POST',
                 body: body
             });
+
+            if (result && result.hasStockShortage && result.stockShortageItems) {
+                this._trackInventoryShortage(result.stockShortageItems);
+                this._emit('checkoutCreatedWithStockShortage', result);
+            }
+
             this._emit('checkoutCreated', result);
             return result;
         }

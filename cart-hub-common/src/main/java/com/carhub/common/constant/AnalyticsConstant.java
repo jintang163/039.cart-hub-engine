@@ -17,6 +17,7 @@ public class AnalyticsConstant {
     public static final String EVENT_REMOVE_COUPON = "remove_coupon";
     public static final String EVENT_PAGE_VIEW = "page_view";
     public static final String EVENT_CLICK = "click";
+    public static final String EVENT_INVENTORY_SHORTAGE_WARNING = "inventory_shortage_warning";
 
     public static final String SOURCE_WEB = "web";
     public static final String SOURCE_H5 = "h5";

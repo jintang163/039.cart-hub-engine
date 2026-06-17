@@ -106,8 +106,10 @@ public class CartHubProperties {
         private Integer expireMinutes = 15;
         private String stockLockUrl;
         private String stockReleaseUrl;
+        private String stockCheckUrl;
         private Integer stockTimeoutMs = 3000;
         private Boolean enableStockLock = true;
+        private Boolean enableStockCheck = true;
         private Integer maxConcurrentPerUser = 3;
         private String notifyUrl;
         private Boolean mockStock = true;

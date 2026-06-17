@@ -1,6 +1,7 @@
 package com.carhub.domain.vo;
 
 import com.carhub.domain.model.Cart;
+import com.carhub.domain.vo.InventoryCheckVO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -9,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -53,5 +55,9 @@ public class CheckoutSnapshotVO implements Serializable {
     private String source;
 
     private LocalDateTime createTime;
+
+    private Boolean hasStockShortage;
+
+    private List<InventoryCheckVO.InventoryItemVO> stockShortageItems;
 
 }

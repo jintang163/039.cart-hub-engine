@@ -49,6 +49,7 @@ public class CheckoutService {
     private final CartHubProperties cartHubProperties;
     private final RedissonClient redissonClient;
     private final RestTemplate restTemplate;
+    private final InventoryService inventoryService;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -103,6 +104,41 @@ public class CheckoutService {
                 .anyMatch(i -> Boolean.TRUE.equals(i.getPriceChanged()));
         if (hasPriceChanged) {
             throw new BusinessException(ResultCode.CHECKOUT_PRICE_CHANGED);
+        }
+
+        List<com.carhub.domain.vo.InventoryCheckVO.InventoryItemVO> stockShortageItems = null;
+        boolean hasStockShortage = false;
+
+        if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getEnableStockCheck())) {
+            try {
+                List<com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO> checkItems = selectedItems.stream()
+                        .map(item -> com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO.builder()
+                                .skuId(item.getSkuId())
+                                .spuId(item.getSpuId())
+                                .quantity(item.getQuantity())
+                                .itemName(item.getItemName())
+                                .build())
+                        .collect(Collectors.toList());
+
+                com.carhub.domain.vo.InventoryCheckVO inventoryCheck = inventoryService.checkInventory(checkItems);
+                if (inventoryCheck != null && inventoryCheck.isHasShortage()) {
+                    hasStockShortage = true;
+                    stockShortageItems = inventoryCheck.getShortageItems();
+                    log.warn("Stock shortage detected for user {}, {} items: {}",
+                            userId, stockShortageItems.size(),
+                            stockShortageItems.stream()
+                                    .map(item -> item.getSkuId() + "(" + item.getShortageReason() + ")")
+                                    .collect(Collectors.joining(", ")));
+                    if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getEnableStockLock())) {
+                        throw new BusinessException(ResultCode.CHECKOUT_STOCK_NOT_ENOUGH.getCode(),
+                                buildStockShortageMessage(stockShortageItems));
+                    }
+                }
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                log.warn("Stock check failed for user {}, will continue without stock check: {}", userId, e.getMessage());
+            }
         }
 
         Cart checkoutCart = buildCheckoutCart(cart, selectedItems);
@@ -161,10 +197,10 @@ public class CheckoutService {
 
         addUserCheckoutToken(tenantId, bizType, userId, checkoutToken, expireTime);
 
-        log.info("Checkout snapshot created: token={}, userId={}, itemCount={}, amount={}",
-                checkoutToken, userId, entity.getItemCount(), entity.getPayAmount());
+        log.info("Checkout snapshot created: token={}, userId={}, itemCount={}, amount={}, hasStockShortage={}",
+                checkoutToken, userId, entity.getItemCount(), entity.getPayAmount(), hasStockShortage);
 
-        return convertToVO(entity, checkoutCart);
+        return convertToVO(entity, checkoutCart, hasStockShortage, stockShortageItems);
     }
 
     public CheckoutSnapshotVO getCheckout(String checkoutToken) {
@@ -614,6 +650,12 @@ public class CheckoutService {
     }
 
     private CheckoutSnapshotVO convertToVO(CheckoutSnapshotEntity entity, Cart cart) {
+        return convertToVO(entity, cart, false, null);
+    }
+
+    private CheckoutSnapshotVO convertToVO(CheckoutSnapshotEntity entity, Cart cart,
+                                           boolean hasStockShortage,
+                                           List<com.carhub.domain.vo.InventoryCheckVO.InventoryItemVO> stockShortageItems) {
         CheckoutSnapshotVO vo = CheckoutSnapshotVO.builder()
                 .checkoutToken(entity.getCheckoutToken())
                 .tenantId(entity.getTenantId())
@@ -632,6 +674,8 @@ public class CheckoutService {
                 .expireTime(entity.getExpireTime())
                 .source(entity.getSource())
                 .createTime(entity.getCreateTime())
+                .hasStockShortage(hasStockShortage)
+                .stockShortageItems(stockShortageItems)
                 .build();
 
         if (entity.getExpireTime() != null) {
@@ -743,6 +787,26 @@ public class CheckoutService {
         } catch (Exception e) {
             log.warn("Remove selected items from cart failed, userId={}", userId, e);
         }
+    }
+
+    private String buildStockShortageMessage(List<com.carhub.domain.vo.InventoryCheckVO.InventoryItemVO> shortageItems) {
+        if (shortageItems == null || shortageItems.isEmpty()) {
+            return "商品库存不足";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("以下商品库存不足：");
+        for (int i = 0; i < Math.min(shortageItems.size(), 3); i++) {
+            com.carhub.domain.vo.InventoryCheckVO.InventoryItemVO item = shortageItems.get(i);
+            sb.append(i + 1).append(". ")
+                    .append(StringUtils.defaultIfBlank(item.getItemName(), "商品"))
+                    .append("（")
+                    .append(StringUtils.defaultIfBlank(item.getShortageReason(), "库存不足"))
+                    .append("）；");
+        }
+        if (shortageItems.size() > 3) {
+            sb.append("等 ").append(shortageItems.size()).append(" 个商品");
+        }
+        return sb.toString();
     }
 
 }
