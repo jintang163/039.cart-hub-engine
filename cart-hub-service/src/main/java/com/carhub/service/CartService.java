@@ -47,6 +47,10 @@ public class CartService {
     private final CartExpireCleanupService cartExpireCleanupService;
     private final CartPriceDropNotifyService cartPriceDropNotifyService;
 
+    @org.springframework.context.annotation.Lazy
+    @Resource
+    private CartSnapshotService cartSnapshotService;
+
     @Resource
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
@@ -103,7 +107,7 @@ public class CartService {
         cartRecommendService.recordAddForRecommend(tenantId, bizType, userId, dto.getSkuId());
         log.info("addItem success: tenantId={}, bizType={}, userId={}, skuId={}, qty={}, hasRemark={}",
                 tenantId, bizType, userId, dto.getSkuId(), dto.getQuantity(), StringUtils.isNotBlank(processedRemark));
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -145,7 +149,7 @@ public class CartService {
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -169,7 +173,7 @@ public class CartService {
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -182,7 +186,7 @@ public class CartService {
 
         CartItem oldItem = cartRedisStorage.getItem(tenantId, bizType, userId, skuId);
         if (oldItem == null) {
-            return getCartSimple();
+            return afterWriteReturn(getCartSimple());
         }
 
         boolean removed = cartRedisStorage.removeItem(tenantId, bizType, userId, skuId);
@@ -193,7 +197,7 @@ public class CartService {
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -214,7 +218,7 @@ public class CartService {
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -233,7 +237,7 @@ public class CartService {
             asyncSyncDb(tenantId, bizType, userId);
             recalculateDiscountIfNeeded(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     public CartVO getCart(boolean validate) {
@@ -308,7 +312,7 @@ public class CartService {
                     dto.getSkuId(), null, null, null, null, "update remark");
             asyncSyncDb(tenantId, bizType, userId);
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     public String getItemRemark(String skuId) {
@@ -350,7 +354,7 @@ public class CartService {
                 .remark("")
                 .build();
         cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -362,7 +366,7 @@ public class CartService {
         checkVersionConflict(tenantId, bizType, userId, clientVersion, forceOverwrite, clientItems);
         List<CartItem> items = cartRedisStorage.getItems(tenantId, bizType, userId);
         if (items == null || items.isEmpty()) {
-            return getCartSimple();
+            return afterWriteReturn(getCartSimple());
         }
         for (CartItem item : items) {
             if (StringUtils.isNotBlank(item.getRemark())) {
@@ -373,7 +377,7 @@ public class CartService {
                 cartRedisStorage.updateItem(tenantId, bizType, userId, updateItem);
             }
         }
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     private String processRemark(String remark) {
@@ -433,7 +437,7 @@ public class CartService {
         }
         log.info("batchSort success: tenantId={}, bizType={}, userId={}, updated={}",
                 tenantId, bizType, userId, updated);
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     private Integer getNextSortWeight(String tenantId, String bizType, String userId) {
@@ -457,7 +461,7 @@ public class CartService {
         checkVersionConflict(tenantId, bizType, userId, dto.getClientVersion(), dto.getForceOverwrite(), dto.getClientItems());
 
         if (dto.getItems() == null || dto.getItems().isEmpty()) {
-            return getCartSimple();
+            return afterWriteReturn(getCartSimple());
         }
 
         int mergedCount = 0;
@@ -501,7 +505,7 @@ public class CartService {
         recalculateDiscountIfNeeded(tenantId, bizType, userId);
         log.info("mergeCart success: tenantId={}, bizType={}, userId={}, mergedCount={}, sourceUserId={}, anonymousLastAccess={}",
                 tenantId, bizType, userId, mergedCount, dto.getSourceUserId(), dto.getAnonymousLastAccessTime());
-        return getCartSimple();
+        return afterWriteReturn(getCartSimple());
     }
 
     public void recalculateForSku(String tenantId, String bizType, String skuId) {
@@ -521,6 +525,17 @@ public class CartService {
                 log.error("recalculate cart error, userId={}, skuId={}", userId, skuId, e);
             }
         }
+    }
+
+    private CartVO afterWriteReturn(CartVO cartVO) {
+        try {
+            if (cartSnapshotService != null) {
+                cartSnapshotService.createDailySnapshotIfAbsent();
+            }
+        } catch (Exception e) {
+            log.warn("Trigger daily snapshot failed", e);
+        }
+        return cartVO;
     }
 
     private CartVO buildCartVO(Cart cart, boolean validate) {

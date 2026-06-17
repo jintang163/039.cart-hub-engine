@@ -682,31 +682,53 @@
         }
 
         async createSnapshot(options = {}) {
-            const qs = new URLSearchParams();
-            if (options.snapshotName) qs.set('snapshotName', options.snapshotName);
-            if (options.snapshotType) qs.set('snapshotType', options.snapshotType);
-            if (options.orderNo) qs.set('orderNo', options.orderNo);
-            return this._request('/api/cart/snapshot?' + qs.toString(), {
-                method: 'POST'
+            const result = await this._request('/api/cart/snapshot', {
+                method: 'POST',
+                body: {
+                    snapshotName: options.snapshotName || null
+                }
             });
+            this._emit('snapshotCreated', result);
+            return result;
         }
 
         async getSnapshot(snapshotId) {
+            if (!snapshotId) throw new Error('snapshotId is required');
             return this._request('/api/cart/snapshot/' + snapshotId);
         }
 
-        async restoreSnapshot(snapshotId) {
-            return this._request('/api/cart/snapshot/restore/' + snapshotId, {
-                method: 'POST'
+        async restoreSnapshot(snapshotId, options = {}) {
+            if (!snapshotId) throw new Error('snapshotId is required');
+            const result = await this._request('/api/cart/snapshot/restore', {
+                method: 'POST',
+                body: {
+                    snapshotId,
+                    mergeCurrent: options.mergeCurrent || false,
+                    clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
+                    forceOverwrite: options.forceOverwrite || false
+                }
             });
+            if (result && result.version != null) {
+                this._updateServerVersion(result.version);
+                this._localCache.items = result.items || this._localCache.items;
+                this._saveLocalCache();
+            }
+            this._emit('snapshotRestored', { snapshotId, options });
+            this._emit('cartChanged', result);
+            return result;
         }
 
-        async listMySnapshots() {
-            return this._request('/api/cart/snapshot/list');
+        async listMySnapshots(limit) {
+            const qs = new URLSearchParams();
+            if (limit != null) qs.set('limit', String(limit));
+            return this._request('/api/cart/snapshot/list?' + qs.toString());
         }
 
         async deleteSnapshot(snapshotId) {
-            return this._request('/api/cart/snapshot/' + snapshotId, { method: 'DELETE' });
+            if (!snapshotId) throw new Error('snapshotId is required');
+            const result = await this._request('/api/cart/snapshot/' + snapshotId, { method: 'DELETE' });
+            this._emit('snapshotDeleted', { snapshotId });
+            return result;
         }
 
         async applyDiscount(options) {

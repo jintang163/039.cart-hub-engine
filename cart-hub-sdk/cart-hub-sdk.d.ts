@@ -44,10 +44,10 @@ export declare class CartHubSDK {
     listMyShares(): Promise<ShareEntity[]>;
     cancelShare(shareId: string): Promise<boolean>;
 
-    createSnapshot(options?: CreateSnapshotOptions): Promise<SnapshotResult>;
-    getSnapshot(snapshotId: string): Promise<CartData>;
-    restoreSnapshot(snapshotId: string): Promise<boolean>;
-    listMySnapshots(): Promise<SnapshotEntity[]>;
+    createSnapshot(options?: CreateSnapshotOptions): Promise<CartSnapshotVO>;
+    getSnapshot(snapshotId: string): Promise<CartSnapshotVO>;
+    restoreSnapshot(snapshotId: string, options?: RestoreSnapshotOptions): Promise<CartVO>;
+    listMySnapshots(limit?: number): Promise<CartSnapshotVO[]>;
     deleteSnapshot(snapshotId: string): Promise<boolean>;
 
     applyDiscount(options: ApplyDiscountOptions): Promise<CartData>;
@@ -307,6 +307,9 @@ export type CartHubEventMap = {
     priceDropUnsubscribed: { skuId: string; result: any };
     priceDropBatchUnsubscribed: { skuIds?: string[]; result: any };
     priceDropInfoLoaded: PriceDropInfo;
+    snapshotCreated: CartSnapshotVO;
+    snapshotRestored: { snapshotId: string; options: RestoreSnapshotOptions };
+    snapshotDeleted: { snapshotId: string };
     trackEvent: TrackEvent;
     error: { url: string; error: any };
     success: { url: string; data: any };
@@ -370,27 +373,26 @@ export interface ShareEntity {
 
 export interface CreateSnapshotOptions {
     snapshotName?: string;
-    snapshotType?: 'manual' | 'auto' | 'share' | 'order';
-    orderNo?: string;
 }
 
-export interface SnapshotResult {
-    snapshotId: string;
-    expireTime: string;
+export interface RestoreSnapshotOptions {
+    mergeCurrent?: boolean;
+    clientVersion?: number;
+    forceOverwrite?: boolean;
 }
 
-export interface SnapshotEntity {
-    id: number;
+export interface CartSnapshotVO {
     snapshotId: string;
     snapshotName?: string;
-    snapshotType: string;
+    snapshotType: 'manual' | 'auto' | 'share' | 'order';
+    snapshotTypeDesc: string;
+    items?: CartItemVO[];
     itemCount: number;
     totalQuantity: number;
     totalAmount: string;
-    orderNo?: string;
-    storageType: number;
-    expireTime?: string;
     createTime: string;
+    expireTime?: string;
+    orderNo?: string;
 }
 
 export interface ApplyDiscountOptions {

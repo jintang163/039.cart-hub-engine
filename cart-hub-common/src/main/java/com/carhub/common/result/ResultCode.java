@@ -63,7 +63,12 @@ public enum ResultCode {
     EXPORT_FAILED(8009, "导出失败"),
 
     CART_VERSION_CONFLICT(9001, "购物车版本冲突，多设备同时修改"),
-    CART_VERSION_OUTDATED(9002, "本地购物车版本已过期，请刷新后重试");
+    CART_VERSION_OUTDATED(9002, "本地购物车版本已过期，请刷新后重试"),
+
+    SNAPSHOT_NOT_FOUND(9101, "快照不存在"),
+    SNAPSHOT_EXPIRED(9102, "快照已过期"),
+    SNAPSHOT_LIMIT_EXCEEDED(9103, "手动快照数量已达上限"),
+    SNAPSHOT_RESTORE_FAILED(9104, "快照还原失败");
 
     private final Integer code;
     private final String message;
