@@ -21,7 +21,7 @@ export declare class CartHubSDK {
     batchRemove(skuIds: string[]): Promise<CartVO>;
     clearCart(): Promise<CartVO>;
 
-    getCart(validate?: boolean): Promise<CartVO | (LocalCart & { local: true })>;
+    getCart(validate?: boolean, checkInventory?: boolean): Promise<CartVO | (LocalCart & { local: true })>;
     getCartSimple(): Promise<CartVO | LocalCart>;
     getItemCount(): Promise<{ skuCount: number; totalQuantity: number }>;
     getCartSummary(): Promise<CartSummary & { local?: boolean }>;
@@ -187,6 +187,8 @@ export interface CartItemVO {
     discountAmount: string;
     payAmount: string;
     stock?: number;
+    available?: boolean;
+    availableQuantity?: number;
     onShelf: boolean;
     selected: boolean;
     priceChanged: boolean;
@@ -198,6 +200,10 @@ export interface CartItemVO {
     sortWeight?: number;
     priceDropSubscribed?: boolean;
     priceDropTargetPrice?: number;
+    stockShortage?: boolean;
+    shortageReason?: string;
+    requestedQuantity?: number;
+    stockStatusClass?: string;
     extInfo?: Record<string, any>;
 }
 
@@ -663,5 +669,7 @@ export interface InventoryStatus {
     shortageCount: number;
     shortageSkuIds: string[];
     shortageItems: InventoryItemVO[];
+    checkFailed?: boolean;
+    errorMessage?: string;
 }
 

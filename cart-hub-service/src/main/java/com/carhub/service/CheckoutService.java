@@ -110,34 +110,26 @@ public class CheckoutService {
         boolean hasStockShortage = false;
 
         if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getEnableStockCheck())) {
-            try {
-                List<com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO> checkItems = selectedItems.stream()
-                        .map(item -> com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO.builder()
-                                .skuId(item.getSkuId())
-                                .spuId(item.getSpuId())
-                                .quantity(item.getQuantity())
-                                .itemName(item.getItemName())
-                                .build())
-                        .collect(Collectors.toList());
+            List<com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO> checkItems = selectedItems.stream()
+                    .map(item -> com.carhub.domain.dto.InventoryCheckDTO.InventoryItemDTO.builder()
+                            .skuId(item.getSkuId())
+                            .spuId(item.getSpuId())
+                            .quantity(item.getQuantity())
+                            .itemName(item.getItemName())
+                            .build())
+                    .collect(Collectors.toList());
 
-                com.carhub.domain.vo.InventoryCheckVO inventoryCheck = inventoryService.checkInventory(checkItems);
-                if (inventoryCheck != null && inventoryCheck.isHasShortage()) {
-                    hasStockShortage = true;
-                    stockShortageItems = inventoryCheck.getShortageItems();
-                    log.warn("Stock shortage detected for user {}, {} items: {}",
-                            userId, stockShortageItems.size(),
-                            stockShortageItems.stream()
-                                    .map(item -> item.getSkuId() + "(" + item.getShortageReason() + ")")
-                                    .collect(Collectors.joining(", ")));
-                    if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getEnableStockLock())) {
-                        throw new BusinessException(ResultCode.CHECKOUT_STOCK_NOT_ENOUGH.getCode(),
-                                buildStockShortageMessage(stockShortageItems));
-                    }
-                }
-            } catch (BusinessException e) {
-                throw e;
-            } catch (Exception e) {
-                log.warn("Stock check failed for user {}, will continue without stock check: {}", userId, e.getMessage());
+            com.carhub.domain.vo.InventoryCheckVO inventoryCheck = inventoryService.checkInventory(checkItems);
+            if (inventoryCheck != null && inventoryCheck.isHasShortage()) {
+                hasStockShortage = true;
+                stockShortageItems = inventoryCheck.getShortageItems();
+                log.warn("Stock shortage detected for user {}, {} items: {}",
+                        userId, stockShortageItems.size(),
+                        stockShortageItems.stream()
+                                .map(item -> item.getSkuId() + "(" + item.getShortageReason() + ")")
+                                .collect(Collectors.joining(", ")));
+                throw new BusinessException(ResultCode.CHECKOUT_STOCK_NOT_ENOUGH.getCode(),
+                        buildStockShortageMessage(stockShortageItems));
             }
         }
 

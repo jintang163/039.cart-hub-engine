@@ -360,16 +360,39 @@
             return result;
         }
 
-        async getCart(validate = true) {
+        async getCart(validate = true, checkInventory = true) {
             if (!this.isLoggedIn()) {
                 const localCart = this.getLocalCart();
                 this._emit('cartLoaded', { ...localCart, local: true });
                 return { ...localCart, local: true };
             }
             const qs = new URLSearchParams({ validate: String(validate) });
-            const result = await this._request('/api/cart?' + qs.toString());
-            this._emit('cartLoaded', result);
-            return result;
+            const cart = await this._request('/api/cart?' + qs.toString());
+
+            if (checkInventory && cart && cart.items && cart.items.length > 0) {
+                try {
+                    const inventory = await this.checkCartInventory(true);
+                    const cartWithInventory = this.applyInventoryStatusToCart(cart, inventory);
+                    this._emit('cartWithInventoryLoaded', cartWithInventory);
+                    this._emit('cartLoaded', cartWithInventory);
+                    return cartWithInventory;
+                } catch (e) {
+                    this._log('Auto inventory check failed when loading cart', e);
+                    this._emit('cartLoaded', cart);
+                    return {
+                        ...cart,
+                        inventoryStatus: {
+                            allAvailable: false,
+                            hasShortage: false,
+                            checkFailed: true,
+                            errorMessage: e.message || '库存校验失败'
+                        }
+                    };
+                }
+            }
+
+            this._emit('cartLoaded', cart);
+            return cart;
         }
 
         async getCartSimple() {
@@ -762,19 +785,47 @@
                     }
                 });
             }
+            let hasShortageInSelected = false;
             const updatedItems = cart.items.map(item => {
                 const updated = { ...item };
                 const status = allStatusMap[item.skuId];
+                const shortage = shortageMap[item.skuId];
+
                 if (status) {
                     updated.stock = status.stock !== undefined ? status.stock : item.stock;
                     updated.available = status.available !== undefined ? status.available : true;
+                    updated.availableQuantity = status.availableQuantity !== undefined
+                        ? status.availableQuantity : item.availableQuantity;
                 }
-                const shortage = shortageMap[item.skuId];
+
                 if (shortage) {
                     updated.available = false;
+                    updated.stockShortage = true;
                     updated.invalidMessage = shortage.shortageReason || '库存不足';
-                    if (this.options.autoDeselectShortage !== false) {
-                        updated.selected = false;
+                    updated.shortageReason = shortage.shortageReason || '库存不足';
+                    updated.requestedQuantity = shortage.requestedQuantity || item.quantity;
+                    updated.availableQuantity = shortage.availableQuantity || shortage.stock || 0;
+                    if (shortage.itemImage) {
+                        updated.itemImage = shortage.itemImage;
+                    }
+                    if (shortage.itemName) {
+                        updated.itemName = shortage.itemName;
+                    }
+                    if (shortage.unitPrice != null) {
+                        updated.unitPrice = shortage.unitPrice;
+                    }
+                    if (item.selected) {
+                        hasShortageInSelected = true;
+                    }
+                    updated.selected = false;
+                    updated.stockStatusClass = 'stock-shortage';
+                } else {
+                    updated.stockStatusClass = 'stock-available';
+                    if (!updated.invalidMessage || updated.invalidMessage === '库存不足') {
+                        updated.invalidMessage = null;
+                    }
+                    if (updated.stockShortage !== undefined) {
+                        delete updated.stockShortage;
                     }
                 }
                 return updated;
@@ -783,17 +834,17 @@
             const result = {
                 ...cart,
                 items: updatedItems,
+                hasStockShortage: shortageSkuIds.length > 0,
+                hasShortageInSelected: hasShortageInSelected,
                 inventoryStatus: {
                     allAvailable: inventoryResult.allAvailable,
                     hasShortage: inventoryResult.hasShortage,
                     shortageCount: shortageSkuIds.length,
                     shortageSkuIds: shortageSkuIds,
-                    shortageItems: inventoryResult.shortageItems
+                    shortageItems: inventoryResult.shortageItems,
+                    checkFailed: false
                 }
             };
-            if (result.recalculate && typeof result.recalculate === 'function') {
-                result.recalculate();
-            }
             this._emit('inventoryStatusApplied', result);
             return result;
         }
@@ -802,22 +853,96 @@
             const container = document.querySelector(containerSelector);
             if (!container) return;
             const self = this;
-            const itemElements = container.querySelectorAll(options.itemSelector || '.cart-item');
+            const itemSelector = options.itemSelector || '.cart-item';
+            const checkboxSelector = options.checkboxSelector || 'input[type="checkbox"], .item-checkbox';
+            const skuIdAttr = options.skuIdAttr || 'data-sku-id';
+            const shortageClass = options.shortageClass || 'stock-shortage';
+
+            const applyShortageClass = (el, skuId) => {
+                const shortageSkuIds = options.shortageSkuIds || [];
+                const shortageMap = options.shortageMap || {};
+                if (shortageSkuIds.includes(skuId) || shortageMap[skuId]) {
+                    el.classList.add(shortageClass);
+                    const shortageInfo = shortageMap[skuId];
+                    if (shortageInfo && !el.getAttribute('data-shortage-reason')) {
+                        el.setAttribute('data-shortage-reason',
+                            shortageInfo.shortageReason || shortageInfo.reason || '库存不足');
+                    }
+                    const checkbox = el.querySelector(checkboxSelector);
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        checkbox.disabled = true;
+                    }
+                }
+            };
+
+            const itemElements = container.querySelectorAll(itemSelector);
             itemElements.forEach(el => {
-                const skuId = el.dataset.skuId || el.getAttribute('data-sku-id');
+                const skuId = el.dataset.skuId
+                    || el.getAttribute(skuIdAttr)
+                    || el.getAttribute('skuId');
                 if (!skuId) return;
-                const checkbox = el.querySelector(options.checkboxSelector || 'input[type="checkbox"], .item-checkbox');
+                applyShortageClass(el, skuId);
+
+                const checkbox = el.querySelector(checkboxSelector);
                 if (checkbox) {
                     checkbox.addEventListener('change', function (e) {
-                        if (el.classList.contains('stock-shortage')) {
+                        if (el.classList.contains(shortageClass)) {
                             e.preventDefault();
                             e.stopPropagation();
                             this.checked = false;
-                            self._showStockShortageToast(el.dataset.shortageReason || '库存不足');
+                            const reason = el.getAttribute('data-shortage-reason')
+                                || el.dataset.shortageReason
+                                || '库存不足';
+                            self._showStockShortageToast(reason);
+                        }
+                    });
+                    checkbox.addEventListener('click', function (e) {
+                        if (el.classList.contains(shortageClass)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const reason = el.getAttribute('data-shortage-reason')
+                                || el.dataset.shortageReason
+                                || '库存不足';
+                            self._showStockShortageToast(reason);
+                            return false;
                         }
                     });
                 }
+
+                const clickableAreas = el.querySelectorAll(options.clickableSelector || `${checkboxSelector}, .select-area`);
+                clickableAreas.forEach(area => {
+                    area.addEventListener('click', function (e) {
+                        if (el.classList.contains(shortageClass)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const reason = el.getAttribute('data-shortage-reason')
+                                || el.dataset.shortageReason
+                                || '库存不足';
+                            self._showStockShortageToast(reason);
+                            return false;
+                        }
+                    });
+                });
             });
+
+            if (typeof MutationObserver !== 'undefined') {
+                const observer = new MutationObserver(function (mutations) {
+                    mutations.forEach(mutation => {
+                        if (mutation.type === 'childList') {
+                            mutation.addedNodes.forEach(node => {
+                                if (node.nodeType === 1 && node.matches(itemSelector)) {
+                                    const skuId = node.dataset.skuId
+                                        || node.getAttribute(skuIdAttr)
+                                        || node.getAttribute('skuId');
+                                    if (skuId) applyShortageClass(node, skuId);
+                                }
+                            });
+                        }
+                    });
+                });
+                observer.observe(container, { childList: true, subtree: true });
+            }
         }
 
         _showStockShortageToast(message) {
@@ -874,24 +999,38 @@
 
             if (this.options.checkInventoryBeforeCheckout !== false) {
                 try {
-                    const inventory = await this.checkCartInventory(false);
+                    const inventory = await this.checkCartInventory(true);
                     if (inventory && inventory.hasShortage) {
-                        if (this.options.autoDeselectShortage !== false && !options.skipAutoDeselect) {
-                            this._log('Stock shortage detected, auto deselect and retry checkout');
-                            await this.checkCartInventory(true);
-                        } else {
-                            const err = new Error('商品库存不足');
-                            err.inventoryStatus = inventory;
-                            err.code = 'STOCK_SHORTAGE';
-                            this._emit('checkoutStockShortage', inventory);
-                            throw err;
+                        this._log('Stock shortage detected, blocked checkout. Shortage items:',
+                            inventory.shortageItems);
+
+                        if (typeof this.showToast === 'function') {
+                            const names = inventory.shortageItems
+                                .map(i => i.itemName || i.skuId)
+                                .join('、');
+                            this.showToast({
+                                type: 'error',
+                                message: '以下商品库存不足：' + names,
+                                duration: 3000
+                            });
                         }
+
+                        const err = new Error('商品库存不足，请移除后再结算');
+                        err.inventoryStatus = inventory;
+                        err.code = 'STOCK_SHORTAGE';
+                        err.shortageItems = inventory.shortageItems;
+                        this._emit('checkoutStockShortage', inventory);
+                        throw err;
                     }
                 } catch (e) {
                     if (e.code === 'STOCK_SHORTAGE') {
                         throw e;
                     }
-                    this._log('Pre-checkout inventory check failed, will try to proceed', e);
+                    this._log('Pre-checkout inventory check failed, blocked checkout', e);
+                    const err = new Error('库存校验失败，请稍后重试：' + (e.message || '未知错误'));
+                    err.code = 'STOCK_CHECK_FAILED';
+                    err.cause = e;
+                    throw err;
                 }
             }
 
@@ -903,6 +1042,11 @@
             if (result && result.hasStockShortage && result.stockShortageItems) {
                 this._trackInventoryShortage(result.stockShortageItems);
                 this._emit('checkoutCreatedWithStockShortage', result);
+                const err = new Error('商品库存不足，请移除后再结算');
+                err.code = 'STOCK_SHORTAGE';
+                err.inventoryStatus = result;
+                err.shortageItems = result.stockShortageItems;
+                throw err;
             }
 
             this._emit('checkoutCreated', result);

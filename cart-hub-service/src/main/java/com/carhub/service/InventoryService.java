@@ -2,6 +2,8 @@ package com.carhub.service;
 
 import com.carhub.common.constant.AnalyticsConstant;
 import com.carhub.common.context.CartContextHolder;
+import com.carhub.common.exception.BusinessException;
+import com.carhub.common.result.ResultCode;
 import com.carhub.common.util.JsonUtil;
 import com.carhub.config.CartHubProperties;
 import com.carhub.domain.dto.InventoryCheckDTO;
@@ -60,10 +62,16 @@ public class InventoryService {
 
         List<InventoryItemVO> itemResults;
 
-        if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getMockStock())
-                && StringUtils.isBlank(cartHubProperties.getCheckout().getStockCheckUrl())) {
+        boolean mockStock = Boolean.TRUE.equals(cartHubProperties.getCheckout().getMockStock());
+        String stockCheckUrl = cartHubProperties.getCheckout().getStockCheckUrl();
+
+        if (mockStock && StringUtils.isBlank(stockCheckUrl)) {
             itemResults = mockCheckInventory(items);
         } else {
+            if (StringUtils.isBlank(stockCheckUrl)) {
+                throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                        "库存校验接口未配置，请联系管理员");
+            }
             itemResults = callStockCheckApi(tenantId, bizType, items);
         }
 
@@ -128,8 +136,8 @@ public class InventoryService {
                                                     List<InventoryItemDTO> items) {
         String stockCheckUrl = cartHubProperties.getCheckout().getStockCheckUrl();
         if (StringUtils.isBlank(stockCheckUrl)) {
-            log.warn("Stock check URL not configured, fallback to mock");
-            return mockCheckInventory(items);
+            throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                    "库存校验接口未配置，请联系管理员");
         }
 
         try {
@@ -152,19 +160,21 @@ public class InventoryService {
                 if (resultList != null) {
                     return convertToItemVO(items, resultList);
                 }
+                throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                        "库存校验接口返回数据为空");
             } else {
                 String message = body != null ? (String) body.get("message") : "库存校验失败";
                 log.warn("Stock check API returned error: {}", message);
+                throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                        "库存校验失败：" + message);
             }
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Call stock check API failed", e);
-            if (Boolean.TRUE.equals(cartHubProperties.getCheckout().getMockStock())) {
-                log.warn("Fallback to mock stock check due to API failure");
-                return mockCheckInventory(items);
-            }
+            throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                    "库存校验接口调用失败：" + e.getMessage());
         }
-
-        return mockCheckInventory(items);
     }
 
     private List<InventoryItemVO> convertToItemVO(List<InventoryItemDTO> requestItems,
@@ -224,9 +234,9 @@ public class InventoryService {
                     builder.shopId(String.valueOf(apiResult.get("shopId")));
                 }
             } else {
-                builder.available(true)
-                        .stock(requestItem.getQuantity() + 100)
-                        .availableQuantity(requestItem.getQuantity() + 100);
+                log.error("Stock check API missing result for skuId: {}", requestItem.getSkuId());
+                throw new BusinessException(ResultCode.CHECKOUT_STOCK_LOCK_FAILED.getCode(),
+                        "库存校验接口返回数据不完整，缺少商品：" + requestItem.getSkuId());
             }
 
             result.add(builder.build());
