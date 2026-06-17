@@ -27,4 +27,6 @@ public class MergeCartDTO implements Serializable {
 
     private Boolean forceOverwrite = false;
 
+    private List<CartItem> clientItems;
+
 }

@@ -575,17 +575,81 @@ public class CartRedisStorage {
     }
 
     public com.carhub.domain.vo.CartVersionConflictVO buildConflictInfo(
-            String tenantId, String bizType, String userId, Long clientVersion) {
+            String tenantId, String bizType, String userId, Long clientVersion,
+            List<com.carhub.domain.model.CartItem> clientItems) {
         Long serverVersion = getVersion(tenantId, bizType, userId);
         List<com.carhub.domain.model.CartItem> serverItems = getItems(tenantId, bizType, userId);
+
+        List<com.carhub.domain.model.CartItem> addedItems = new ArrayList<>();
+        List<com.carhub.domain.model.CartItem> removedItems = new ArrayList<>();
+        List<com.carhub.domain.model.CartItem> modifiedItems = new ArrayList<>();
+
+        if (clientItems != null && !clientItems.isEmpty()) {
+            Map<String, com.carhub.domain.model.CartItem> serverItemMap = serverItems.stream()
+                    .filter(item -> item != null && item.getSkuId() != null)
+                    .collect(Collectors.toMap(
+                            com.carhub.domain.model.CartItem::getSkuId,
+                            item -> item,
+                            (existing, replacement) -> existing));
+
+            Map<String, com.carhub.domain.model.CartItem> clientItemMap = clientItems.stream()
+                    .filter(item -> item != null && item.getSkuId() != null)
+                    .collect(Collectors.toMap(
+                            com.carhub.domain.model.CartItem::getSkuId,
+                            item -> item,
+                            (existing, replacement) -> existing));
+
+            for (com.carhub.domain.model.CartItem serverItem : serverItems) {
+                if (serverItem == null || serverItem.getSkuId() == null) continue;
+                if (!clientItemMap.containsKey(serverItem.getSkuId())) {
+                    addedItems.add(serverItem);
+                } else {
+                    com.carhub.domain.model.CartItem clientItem = clientItemMap.get(serverItem.getSkuId());
+                    if (isItemModified(clientItem, serverItem)) {
+                        modifiedItems.add(serverItem);
+                    }
+                }
+            }
+
+            for (com.carhub.domain.model.CartItem clientItem : clientItems) {
+                if (clientItem == null || clientItem.getSkuId() == null) continue;
+                if (!serverItemMap.containsKey(clientItem.getSkuId())) {
+                    removedItems.add(clientItem);
+                }
+            }
+        }
 
         return com.carhub.domain.vo.CartVersionConflictVO.builder()
                 .clientVersion(clientVersion)
                 .serverVersion(serverVersion)
                 .serverItems(serverItems)
+                .addedItems(addedItems)
+                .removedItems(removedItems)
+                .modifiedItems(modifiedItems)
                 .updateTime(System.currentTimeMillis())
                 .message("检测到其他设备已更新购物车，请选择处理方式")
                 .build();
+    }
+
+    private boolean isItemModified(com.carhub.domain.model.CartItem clientItem,
+                                    com.carhub.domain.model.CartItem serverItem) {
+        if (!Objects.equals(clientItem.getQuantity(), serverItem.getQuantity())) {
+            return true;
+        }
+        if (!Objects.equals(clientItem.getSelected(), serverItem.getSelected())) {
+            return true;
+        }
+        if (!Objects.equals(clientItem.getRemark(), serverItem.getRemark())) {
+            return true;
+        }
+        if (!Objects.equals(clientItem.getSortWeight(), serverItem.getSortWeight())) {
+            return true;
+        }
+        if (clientItem.getUnitPrice() != null && serverItem.getUnitPrice() != null
+                && clientItem.getUnitPrice().compareTo(serverItem.getUnitPrice()) != 0) {
+            return true;
+        }
+        return false;
     }
 
     private void incrementVersion(String tenantId, String bizType, String cartKey) {

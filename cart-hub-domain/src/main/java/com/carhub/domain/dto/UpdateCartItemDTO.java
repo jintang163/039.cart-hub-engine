@@ -1,11 +1,13 @@
 package com.carhub.domain.dto;
 
+import com.carhub.domain.model.CartItem;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -37,5 +39,7 @@ public class UpdateCartItemDTO implements Serializable {
     private Long clientVersion;
 
     private Boolean forceOverwrite = false;
+
+    private List<CartItem> clientItems;
 
 }

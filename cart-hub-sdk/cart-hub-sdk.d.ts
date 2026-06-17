@@ -23,7 +23,7 @@ export declare class CartHubSDK {
 
     getCartVersion(): number;
     forceRefreshCart(): Promise<CartVO>;
-    resolveConflict(choice: 'overwrite' | 'merge' | 'accept_server', conflictInfo?: CartVersionConflictVO): Promise<any>;
+    resolveConflict(choice: 'overwrite' | 'merge' | 'accept_server', conflictInfo?: CartVersionConflictVO, retryFn?: (options: VersionConflictOptions) => Promise<any>): Promise<any>;
 
     getCart(validate?: boolean, checkInventory?: boolean): Promise<CartVO | (LocalCart & { local: true })>;
     getCartSimple(): Promise<CartVO | LocalCart>;
@@ -681,6 +681,7 @@ export interface InventoryStatus {
 export interface VersionConflictOptions {
     clientVersion?: number;
     forceOverwrite?: boolean;
+    clientItems?: CartItemVO[];
 }
 
 export interface CartVersionConflictVO {

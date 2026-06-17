@@ -1,5 +1,6 @@
 package com.carhub.domain.dto;
 
+import com.carhub.domain.model.CartItem;
 import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
@@ -17,5 +18,7 @@ public class BatchCartItemDTO implements Serializable {
     private Long clientVersion;
 
     private Boolean forceOverwrite = false;
+
+    private List<CartItem> clientItems;
 
 }

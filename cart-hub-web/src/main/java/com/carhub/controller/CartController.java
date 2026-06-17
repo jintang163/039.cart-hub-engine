@@ -3,6 +3,7 @@ package com.carhub.controller;
 import com.carhub.common.result.R;
 import com.carhub.domain.dto.*;
 import com.carhub.domain.model.Cart;
+import com.carhub.domain.model.CartItem;
 import com.carhub.domain.vo.CartVO;
 import com.carhub.domain.vo.CouponVO;
 import com.carhub.domain.vo.DiscountResultVO;
@@ -42,47 +43,50 @@ public class CartController {
 
     @ApiOperation("添加商品到购物车")
     @PostMapping("/item")
-    public R<Boolean> addItem(@RequestBody @Valid AddCartItemDTO dto) {
+    public R<CartVO> addItem(@RequestBody @Valid AddCartItemDTO dto) {
         return R.ok(cartService.addItem(dto));
     }
 
     @ApiOperation("修改购物车商品")
     @PutMapping("/item")
-    public R<Boolean> updateItem(@RequestBody @Valid UpdateCartItemDTO dto) {
+    public R<CartVO> updateItem(@RequestBody @Valid UpdateCartItemDTO dto) {
         return R.ok(cartService.updateItem(dto));
     }
 
     @ApiOperation("增减商品数量")
     @PatchMapping("/item/quantity")
-    public R<Long> incrementQuantity(
+    public R<CartVO> incrementQuantity(
             @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
             @ApiParam("增量，正数增加，负数减少") @RequestParam(defaultValue = "1") int delta,
             @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
-            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
-        return R.ok(cartService.incrementQuantity(skuId, delta, clientVersion, forceOverwrite));
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite,
+            @ApiParam("客户端本地商品列表（用于冲突差异比对）") @RequestBody(required = false) List<CartItem> clientItems) {
+        return R.ok(cartService.incrementQuantity(skuId, delta, clientVersion, forceOverwrite, clientItems));
     }
 
     @ApiOperation("删除购物车单个商品")
     @DeleteMapping("/item")
-    public R<Boolean> removeItem(
+    public R<CartVO> removeItem(
             @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
             @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
-            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
-        return R.ok(cartService.removeItem(skuId, clientVersion, forceOverwrite));
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite,
+            @ApiParam("客户端本地商品列表（用于冲突差异比对）") @RequestBody(required = false) List<CartItem> clientItems) {
+        return R.ok(cartService.removeItem(skuId, clientVersion, forceOverwrite, clientItems));
     }
 
     @ApiOperation("批量删除购物车商品")
     @DeleteMapping("/items")
-    public R<Long> batchRemove(@RequestBody @Valid BatchCartItemDTO dto) {
+    public R<CartVO> batchRemove(@RequestBody @Valid BatchCartItemDTO dto) {
         return R.ok(cartService.batchRemove(dto));
     }
 
     @ApiOperation("清空购物车")
     @DeleteMapping("/clear")
-    public R<Boolean> clearCart(
+    public R<CartVO> clearCart(
             @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
-            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
-        return R.ok(cartService.clearCart(clientVersion, forceOverwrite));
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite,
+            @ApiParam("客户端本地商品列表（用于冲突差异比对）") @RequestBody(required = false) List<CartItem> clientItems) {
+        return R.ok(cartService.clearCart(clientVersion, forceOverwrite, clientItems));
     }
 
     @ApiOperation("获取完整购物车（含校验重算）")
@@ -340,7 +344,7 @@ public class CartController {
 
     @ApiOperation("设置购物车商品备注")
     @PutMapping("/item/remark")
-    public R<Boolean> setItemRemark(@RequestBody @Valid UpdateItemRemarkDTO dto) {
+    public R<CartVO> setItemRemark(@RequestBody @Valid UpdateItemRemarkDTO dto) {
         return R.ok(cartService.setItemRemark(dto));
     }
 
@@ -359,24 +363,26 @@ public class CartController {
 
     @ApiOperation("删除购物车单个商品备注")
     @DeleteMapping("/item/remark")
-    public R<Boolean> removeItemRemark(
+    public R<CartVO> removeItemRemark(
             @ApiParam("SKU ID") @RequestParam @NotBlank String skuId,
             @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
-            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
-        return R.ok(cartService.removeItemRemark(skuId, clientVersion, forceOverwrite));
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite,
+            @ApiParam("客户端本地商品列表（用于冲突差异比对）") @RequestBody(required = false) List<CartItem> clientItems) {
+        return R.ok(cartService.removeItemRemark(skuId, clientVersion, forceOverwrite, clientItems));
     }
 
     @ApiOperation("清空购物车所有商品备注")
     @DeleteMapping("/items/remarks")
-    public R<Boolean> clearAllItemRemarks(
+    public R<CartVO> clearAllItemRemarks(
             @ApiParam("客户端版本号") @RequestParam(required = false) Long clientVersion,
-            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite) {
-        return R.ok(cartService.clearAllItemRemarks(clientVersion, forceOverwrite));
+            @ApiParam("是否强制覆盖") @RequestParam(required = false, defaultValue = "false") Boolean forceOverwrite,
+            @ApiParam("客户端本地商品列表（用于冲突差异比对）") @RequestBody(required = false) List<CartItem> clientItems) {
+        return R.ok(cartService.clearAllItemRemarks(clientVersion, forceOverwrite, clientItems));
     }
 
     @ApiOperation("批量更新购物车商品排序（拖拽排序用）")
     @PutMapping("/items/sort")
-    public R<Integer> batchSort(@RequestBody @Valid BatchSortDTO dto) {
+    public R<CartVO> batchSort(@RequestBody @Valid BatchSortDTO dto) {
         return R.ok(cartService.batchSort(dto));
     }
 

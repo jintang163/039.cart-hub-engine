@@ -1,5 +1,6 @@
 package com.carhub.domain.dto;
 
+import com.carhub.domain.model.CartItem;
 import lombok.Data;
 
 import javax.validation.Valid;
@@ -26,5 +27,7 @@ public class BatchSortDTO implements Serializable {
     private Long clientVersion;
 
     private Boolean forceOverwrite = false;
+
+    private List<CartItem> clientItems;
 
 }

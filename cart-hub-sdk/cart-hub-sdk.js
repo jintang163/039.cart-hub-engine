@@ -189,6 +189,11 @@
                     throw Object.assign(new Error(result.message || 'Request failed'), result);
                 }
                 this._emit('success', { url, data: result.data });
+                if (result.data && result.data.version != null) {
+                    this._updateServerVersion(result.data.version);
+                    this._localCache.items = result.data.items || this._localCache.items;
+                    this._saveLocalCache();
+                }
                 return result.data;
             } catch (error) {
                 clearTimeout(timeoutId);
@@ -290,7 +295,8 @@
             }
             const body = Object.assign({}, item, {
                 clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                forceOverwrite: options.forceOverwrite || false
+                forceOverwrite: options.forceOverwrite || false,
+                clientItems: options.clientItems || this._localCache.items
             });
             const result = await this._request('/api/cart/item', {
                 method: 'POST',
@@ -311,7 +317,8 @@
             }
             const body = Object.assign({}, item, {
                 clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                forceOverwrite: options.forceOverwrite || false
+                forceOverwrite: options.forceOverwrite || false,
+                clientItems: options.clientItems || this._localCache.items
             });
             const result = await this._request('/api/cart/item', {
                 method: 'PUT',
@@ -338,8 +345,10 @@
                 clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
                 forceOverwrite: String(options.forceOverwrite || false)
             });
+            const clientItems = options.clientItems || this._localCache.items;
             const result = await this._request('/api/cart/item/quantity?' + qs.toString(), {
-                method: 'PATCH'
+                method: 'PATCH',
+                body: clientItems
             });
             this._emit('quantityChanged', { skuId, delta, result });
             this._emit('cartChanged', result);
@@ -358,8 +367,10 @@
                 clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
                 forceOverwrite: String(options.forceOverwrite || false)
             });
+            const clientItems = options.clientItems || this._localCache.items;
             const result = await this._request('/api/cart/item?' + qs.toString(), {
-                method: 'DELETE'
+                method: 'DELETE',
+                body: clientItems
             });
             this._emit('itemRemoved', { skuId, result });
             this._emit('cartChanged', result);
@@ -379,7 +390,8 @@
             const body = {
                 skuIds,
                 clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                forceOverwrite: options.forceOverwrite || false
+                forceOverwrite: options.forceOverwrite || false,
+                clientItems: options.clientItems || this._localCache.items
             };
             const result = await this._request('/api/cart/items', {
                 method: 'DELETE',
@@ -401,7 +413,11 @@
                 clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
                 forceOverwrite: String(options.forceOverwrite || false)
             });
-            const result = await this._request('/api/cart/clear?' + qs.toString(), { method: 'DELETE' });
+            const clientItems = options.clientItems || this._localCache.items;
+            const result = await this._request('/api/cart/clear?' + qs.toString(), {
+                method: 'DELETE',
+                body: clientItems
+            });
             this._emit('cartCleared', result);
             this._emit('cartChanged', result);
             return result;
@@ -544,7 +560,8 @@
                 overwrite: !!options.overwrite,
                 anonymousLastAccessTime: options.anonymousLastAccessTime || this._getLocalMaxAddTime(),
                 clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                forceOverwrite: options.forceOverwrite || false
+                forceOverwrite: options.forceOverwrite || false,
+                clientItems: options.clientItems || this._localCache.items
             };
             const result = await this._request('/api/cart/merge', {
                 method: 'POST',
@@ -572,9 +589,21 @@
             return this.getCart(true, false);
         }
 
-        async resolveConflict(choice, conflictInfo) {
+        async resolveConflict(choice, conflictInfo, retryFn) {
             if (choice === 'overwrite') {
                 this._log('resolving conflict by forcing overwrite');
+                if (typeof retryFn === 'function') {
+                    this._log('retrying original operation with forceOverwrite=true');
+                    try {
+                        return await retryFn({ forceOverwrite: true });
+                    } catch (e) {
+                        if (e.code === 9001 || e.code === 9002) {
+                            this._log('conflict still exists after overwrite, refreshing cart');
+                            return this.forceRefreshCart();
+                        }
+                        throw e;
+                    }
+                }
                 return { choice: 'overwrite', forceOverwrite: true };
             } else if (choice === 'merge') {
                 this._log('resolving conflict by merging local items');
@@ -593,12 +622,22 @@
                     }
                 });
                 const mergedItems = Object.values(mergedMap);
-                return this.mergeCart({
+                const mergeResult = await this.mergeCart({
                     items: mergedItems,
                     clearLocalAfterMerge: true,
                     overwrite: true,
                     forceOverwrite: true
                 });
+                if (typeof retryFn === 'function') {
+                    this._log('retrying original operation after merge');
+                    try {
+                        return await retryFn({ forceOverwrite: true });
+                    } catch (e) {
+                        this._log('retry failed after merge', e.message);
+                        return mergeResult;
+                    }
+                }
+                return mergeResult;
             } else if (choice === 'accept_server') {
                 this._log('resolving conflict by accepting server version');
                 if (conflictInfo && conflictInfo.serverVersion != null) {
@@ -767,7 +806,8 @@
                     skuId,
                     remark,
                     clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                    forceOverwrite: options.forceOverwrite || false
+                    forceOverwrite: options.forceOverwrite || false,
+                    clientItems: options.clientItems || this._localCache.items
                 }
             });
             this._emit('remarkChanged', { skuId, remark });
@@ -790,8 +830,10 @@
                 clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
                 forceOverwrite: String(options.forceOverwrite || false)
             });
+            const clientItems = options.clientItems || this._localCache.items;
             const result = await this._request('/api/cart/item/remark?' + qs.toString(), {
-                method: 'DELETE'
+                method: 'DELETE',
+                body: clientItems
             });
             this._emit('remarkChanged', { skuId, remark: null });
             this._emit('cartChanged', result);
@@ -803,7 +845,11 @@
                 clientVersion: String(options.clientVersion != null ? options.clientVersion : this._getCurrentVersion()),
                 forceOverwrite: String(options.forceOverwrite || false)
             });
-            const result = await this._request('/api/cart/items/remarks?' + qs.toString(), { method: 'DELETE' });
+            const clientItems = options.clientItems || this._localCache.items;
+            const result = await this._request('/api/cart/items/remarks?' + qs.toString(), {
+                method: 'DELETE',
+                body: clientItems
+            });
             this._emit('remarkChanged', { skuId: null, remark: null, allCleared: true });
             this._emit('cartChanged', result);
             return result;
@@ -822,7 +868,8 @@
                 body: {
                     sortItems: items,
                     clientVersion: options.clientVersion != null ? options.clientVersion : this._getCurrentVersion(),
-                    forceOverwrite: options.forceOverwrite || false
+                    forceOverwrite: options.forceOverwrite || false,
+                    clientItems: options.clientItems || this._localCache.items
                 }
             });
             this._emit('sortChanged', items);
